@@ -1,0 +1,12 @@
+enclave {
+	include "string.h"
+
+	trusted {
+		public int say_hello(); // public so we can call from app
+	};
+
+	untrusted {
+		int ocall_prints([in, string] const char* str);
+	};
+	
+};

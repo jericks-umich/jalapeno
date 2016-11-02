@@ -1,11 +1,49 @@
 enclave {
-	include "string.h"
+	include "sgx_tcrypto.h"
+	include "sgx_error.h"
 
 	trusted {
-		public int say_hello(); // public so we can call from app
+		// generates new public and private ecdsa keys, persistently stores the private key for later operations
+		// the public key is returned for untrusted use, and to identify which private key should be used later on
+		public sgx_status_t genKey([out] sgx_ec256_public_t* pub);
+
+		// deletes the public/private keypair associated with the input public key
+		public sgx_status_t delKey([in] sgx_ec256_public_t* pub); 
+
+
+
+
+		// The following functions are for TESTING ONLY
+
+		// input: 
+		//	Pointer to a buffer of encrypted bytes
+		//	length of the buffer of encrypted bytes
+		//	the public key associated with the private key used for decryption
+		// output:
+		//	pointer to a buffer of decrypted bytes
+		public sgx_status_t debug_decrypt([in,count=len] const uint8_t* ciphertext, uint32_t len, [in] sgx_ec256_public_t* pub, [out,count=len] uint8_t* plaintext);
+
+		// input: 
+		//	Pointer to a buffer of plaintext bytes
+		//	length of the buffer of plaintext bytes
+		//	the public key associated with the private key used for encryption
+		// output:
+		//	pointer to a buffer of encrypted bytes
+		//public sgx_status_t debug_encrypt([in,count=len] const uint8_t* plaintext, uint32_t len, [in] sgx_ec256_public_t* pub, [out,count=len] uint8_t* ciphertext);
+		// Note: we didn't talk about this function, so it's commented out, but I put it here just for reference
+
+		// input: 
+		//	Pointer to a buffer of plaintext bytes
+		//	length of the buffer of plaintext bytes
+		//	the public key associated with the private key used for signing
+		// output:
+		//	pointer to the signature
+		public sgx_status_t debug_sign([in,count=len] const uint8_t* plaintext, uint32_t len, [in] sgx_ec256_public_t* pub, [out] sgx_ec256_signature_t* signature);
+
 	};
 
 	untrusted {
+		// keep this around for debugging
 		int ocall_prints([in, string] const char* str);
 	};
 	

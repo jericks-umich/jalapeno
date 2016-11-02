@@ -31,7 +31,7 @@
 
 ######## SGX SDK Settings ########
 
-APP_NAME ?= hello
+APP_NAME ?= jalapeno
 
 SGX_SDK ?= /opt/intel/sgxsdk
 #SGX_MODE ?= SIM

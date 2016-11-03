@@ -54,11 +54,18 @@ int SGX_CDECL main(int argc, char* argv[]) {
   printf("Return status from genKey: %d\n", retval);
 
   // Print Pub Key for Debug
-  for(int i = 0; i < sizeof(sgx_ec256_public_t); i++)
+  for(int i = 0; i < sizeof(SGX_ECP256_KEY_SIZE); i++)
   {
-    printf("%02X",(uint8_t)((uint8_t*)pub[i]));
+    printf("%02X",pub->gx[i]));
     i++;
   }
+  printf("\n");
+  for(int i = 0; i < sizeof(SGX_ECP256_KEY_SIZE); i++)
+  {
+    printf("%02X",pub->gy[i]));
+    i++;
+  }
+  printf("\n");
 
   status = delKey(global_eid, &retval, &pub);
   printf("Return status from delKey: %d\n", retval);

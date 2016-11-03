@@ -56,13 +56,13 @@ int SGX_CDECL main(int argc, char* argv[]) {
   // Print Pub Key for Debug
   for(int i = 0; i < sizeof(SGX_ECP256_KEY_SIZE); i++)
   {
-    printf("%02X",pub->gx[i]);
+    printf("%02X",pub.gx[i]);
     i++;
   }
   printf("\n");
   for(int i = 0; i < sizeof(SGX_ECP256_KEY_SIZE); i++)
   {
-    printf("%02X",pub->gy[i]);
+    printf("%02X",pub.gy[i]);
     i++;
   }
   printf("\n");

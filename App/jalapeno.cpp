@@ -56,7 +56,7 @@ int SGX_CDECL main(int argc, char* argv[]) {
   // Print Pub Key for Debug
   for(int i = 0; i < sizeof(sgx_ec256_public_t); i++)
   {
-    printf("%02X",(uint8_t)pub[i]);
+    printf("%02X",(uint8_t)((uint8_t*)pub[i]));
     i++;
   }
 

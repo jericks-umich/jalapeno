@@ -20,9 +20,31 @@ int say_hello() {
 
 // pub is for passing back the new public key
 sgx_status_t genKey(sgx_ec256_public_t* pub) {
-  char str[] = "Called genKey()";
-  int retval;
+  char str[]          = "Called genKey()";
+  int retval          = 0;
+  sgx_status_t status = SGX_SUCCESS;
+
+  sgx_ecc_state_handle_t *p_ecc_handle  = NULL;
+  sgx_ec256_private_t    *p_private_key = NULL;
+  sgx_ec256_public_t     *p_public_key  = NULL; 
+
+  // Open ECC256 Context
+  if(SGXAPI sgx_ecc256_open_context(p_ecc_handle) != SGX_SUCCESS){
+    return SGX_ERROR_UNEXPECTED;
+  }
+
+  // Generate ECC256 Key Pair with ECC256 Context
+  if(SGXAPI sgx_ecc256_create_key_pair(p_private_key, p_public_key, p_ecc_handle) != SGX_SUCCESS){
+    return SGX_ERROR_UNEXPECTED;
+  }
+
+  // Close ECC256 Context
+  if(SGXAPI sgx_ecc256_close_context(*p_ecc_handle) != SGX_SUCCESS){
+    return SGX_ERROR_UNEXPECTED; 
+  }
+
   ocall_prints(&retval, str);
+  // ocall_print_key(&retval, str);
   return SGX_SUCCESS;
 }
 

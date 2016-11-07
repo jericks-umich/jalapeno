@@ -55,7 +55,7 @@ int SGX_CDECL main(int argc, char* argv[]) {
   printf("Return status from genKey: %d\n", retval);
 
   // 1b. Print EC256 Public Key for Debug
-  print_ec256_pub_key(&pub)
+  print_ec256_pub_key(&pub);
 
   status = delKey(global_eid, &retval, &pub);
   printf("Return status from delKey: %d\n", retval);

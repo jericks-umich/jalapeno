@@ -10,9 +10,6 @@ enclave {
 		// deletes the public/private keypair associated with the input public key
 		public sgx_status_t delKey([in] sgx_ec256_public_t* pub); 
 
-
-
-
 		// The following functions are for TESTING ONLY
 
 		// input: 

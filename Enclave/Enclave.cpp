@@ -34,6 +34,8 @@ sgx_status_t genKey(sgx_ec256_public_t* pub) {
   }
 
   // Generate ECC256 Key Pair with ECC256 Context
+  return SGXAPI sgx_ecc256_create_key_pair(p_private_key, pub, p_ecc_handle);
+  
   if(SGXAPI sgx_ecc256_create_key_pair(p_private_key, pub, p_ecc_handle) != SGX_SUCCESS){
     return SGX_ERROR_UNEXPECTED;
   }

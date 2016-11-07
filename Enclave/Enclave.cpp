@@ -8,6 +8,8 @@
 #include "Enclave_t.h"
 #include "Enclave.h"
 
+using namespace std;
+
 ////////////
 // PUBLIC //
 ////////////

@@ -44,7 +44,7 @@ sgx_status_t genKey(sgx_ec256_public_t* pub) {
 	}
 
 	// Copy memory of public key
-	memcpy(p_public_key, pub, sizeof(sgx_ec256_public_t));
+	memcpy((void*)p_public_key, pub, sizeof(sgx_ec256_public_t));
 	// ocall_prints(&retval, str);
 	return SGX_SUCCESS;
 }

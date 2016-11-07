@@ -14,7 +14,7 @@ using namespace std;
 // PUBLIC //
 ////////////
 
-unordered_map <sgx_ec256_public_t*, sgx_ec256_private_t*> ec256_keys;
+unordered_map<sgx_ec256_public_t*, sgx_ec256_private_t*> ec256_keys;
 
 int say_hello() {
 	char str[] = "Hello SGX!";

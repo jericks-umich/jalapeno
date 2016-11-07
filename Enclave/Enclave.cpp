@@ -29,7 +29,7 @@ sgx_status_t genKey(sgx_ec256_public_t* pub) {
   // sgx_ec256_spublic_t     *p_public_key  = NULL; 
 
   // Open ECC256 ContextSGXAPI 
-  if(SGXAPI sgx_ecc256_open_context(p_ecc_handle) != SGX_SUCCESS){
+  if(SGXAPI sgx_ecc256_open_context(&p_ecc_handle) != SGX_SUCCESS){
     return SGX_ERROR_UNEXPECTED;
   }
 

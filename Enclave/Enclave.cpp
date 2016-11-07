@@ -39,7 +39,7 @@ sgx_status_t genKey(sgx_ec256_public_t* pub) {
   }
 
   // Close ECC256 Context
-  if(SGXAPI sgx_ecc256_close_context(*p_ecc_handle) != SGX_SUCCESS){
+  if(SGXAPI sgx_ecc256_close_context(p_ecc_handle) != SGX_SUCCESS){
     return SGX_ERROR_UNEXPECTED; 
   }
 

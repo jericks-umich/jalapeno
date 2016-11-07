@@ -24,7 +24,7 @@ sgx_status_t genKey(sgx_ec256_public_t* pub) {
   int retval          = 0;
   sgx_status_t status = SGX_SUCCESS;
 
-  sgx_ecc_state_handle_t *p_ecc_handle  = NULL;
+  sgx_ecc_state_handle_t *p_ecc_handle;
   sgx_ec256_private_t    *p_private_key = NULL;
   // sgx_ec256_public_t     *p_public_key  = NULL; 
 

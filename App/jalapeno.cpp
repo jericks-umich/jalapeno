@@ -50,24 +50,12 @@ int SGX_CDECL main(int argc, char* argv[]) {
   sgx_status_t status;
   sgx_ec256_public_t pub;
 
+  // 1a. Generate EC256 Public-Private Key Pair
   status = genKey(global_eid, &retval, &pub);
   printf("Return status from genKey: %d\n", retval);
 
-  // Print Pub Key for Debug
-  printf("Public gx: ");
-  for(int i = 0; i < SGX_ECP256_KEY_SIZE; i++)
-  {
-    printf("%02X",pub.gx[i]);
-    i++;
-  }
-  printf("\n");
-    printf("Public y: ");
-  for(int i = 0; i < SGX_ECP256_KEY_SIZE; i++)
-  {
-    printf("%02X",pub.gy[i]);
-    i++;
-  }
-  printf("\n");
+  // 1b. Print EC256 Public Key for Debug
+  print_ec256_pub_key(&pub)
 
   status = delKey(global_eid, &retval, &pub);
   printf("Return status from delKey: %d\n", retval);
@@ -90,4 +78,23 @@ int SGX_CDECL main(int argc, char* argv[]) {
   printf("This is the returned signature: %u\n", signature.x[0]);
 
   return 0;
+}
+
+/////////////
+// TESTING //
+/////////////
+
+void print_ec256_pub_key(sgx_ec256_public_t *pub) {
+	printf("Public gx: ");
+	for(int i = 0; i < SGX_ECP256_KEY_SIZE; i++)
+	{
+		printf("%02X",pub.gx[i]);
+	}
+	printf("\n");
+	printf("Public gy: ");
+	for(int i = 0; i < SGX_ECP256_KEY_SIZE; i++)
+	{
+		printf("%02X",pub.gy[i]);
+	}
+	printf("\n");
 }

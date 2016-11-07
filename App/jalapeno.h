@@ -7,6 +7,7 @@
 
 extern sgx_enclave_id_t global_eid;
 
-
+// Test Code
+void print_ec256_pub_key(sgx_ec256_public_t *pub);
 
 #endif // JALAPENO_H

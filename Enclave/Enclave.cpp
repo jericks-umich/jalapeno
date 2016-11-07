@@ -1,9 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include <unordered_map>
 
-#include "sgx_tcrypto.h"
 #include "sgx_error.h"
 
 #include "Enclave_t.h"

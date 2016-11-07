@@ -88,13 +88,13 @@ void print_ec256_pub_key(sgx_ec256_public_t *pub) {
 	printf("Public gx: ");
 	for(int i = 0; i < SGX_ECP256_KEY_SIZE; i++)
 	{
-		printf("%02X",pub.gx[i]);
+		printf("%02X",pub->gx[i]);
 	}
 	printf("\n");
 	printf("Public gy: ");
 	for(int i = 0; i < SGX_ECP256_KEY_SIZE; i++)
 	{
-		printf("%02X",pub.gy[i]);
+		printf("%02X",pub->gy[i]);
 	}
 	printf("\n");
 }

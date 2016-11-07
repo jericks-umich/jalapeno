@@ -26,7 +26,7 @@ sgx_status_t genKey(sgx_ec256_public_t* pub) {
 
 	sgx_ecc_state_handle_t p_ecc_handle;
 	sgx_ec256_private_t    p_private_key;
-	sgx_ec256_public_t    p_public_key; 
+	sgx_ec256_public_t     p_public_key; 
 
 	// Open ECC256 Context
 	if(SGXAPI sgx_ecc256_open_context(&p_ecc_handle) != SGX_SUCCESS){
@@ -44,7 +44,7 @@ sgx_status_t genKey(sgx_ec256_public_t* pub) {
 	}
 
 	// Copy memory of public key
-	memcpy((void*)p_public_key, pub, sizeof(sgx_ec256_public_t));
+	memcpy((void*)p_public_key, (void*)pub, sizeof(sgx_ec256_public_t));
 	// ocall_prints(&retval, str);
 	return SGX_SUCCESS;
 }

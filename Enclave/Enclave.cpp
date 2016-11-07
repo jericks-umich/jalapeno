@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 #include <unordered_map>
 
 #include "sgx_tcrypto.h"

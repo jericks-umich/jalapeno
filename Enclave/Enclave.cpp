@@ -3,17 +3,14 @@
 #include <stdlib.h>
 
 #include "sgx_error.h"
+#include "sgx_tcrypto.h"
 
 #include "Enclave_t.h"
 #include "Enclave.h"
 
-using namespace std;
-
 ////////////
 // PUBLIC //
 ////////////
-
-unordered_map<sgx_ec256_public_t*, sgx_ec256_private_t*> ec256_keys;
 
 int say_hello() {
 	char str[] = "Hello SGX!";
@@ -39,13 +36,13 @@ sgx_status_t genKey(sgx_ec256_public_t* pub) {
 	}
 
 	// Allocate Enclave Memory for EC265 Private Key
-	private_key = malloc( sizeof( sgx_ec256_private_t ));
+	private_key = (sgx_ec256_private_t*)malloc( sizeof( sgx_ec256_private_t ));
 	if (private_key == NULL){
 		return SGX_ERROR_OUT_OF_MEMORY;
 	}
 
 	// Allocate Enclave Memory for EC265 Public Key
-	public_key = malloc( sizeof( sgx_ec256_public_t ));
+	public_key = (sgx_ec256_public_t*)malloc( sizeof( sgx_ec256_public_t ));
 	if (public_key == NULL){
 		return SGX_ERROR_OUT_OF_MEMORY;
 	}
@@ -61,9 +58,9 @@ sgx_status_t genKey(sgx_ec256_public_t* pub) {
 	}
 
 	// Update Key-pair Hashtable
-	if (ec256_keys.find(public_key) == ec256_keys.end()){
-		ec256_keys[ public_key ] = private_key;
-	}
+//	if (ec256_keys.find(public_key) == ec256_keys.end()){
+//		ec256_keys[ public_key ] = private_key;
+//	}
 
 	// Copy memory of public key
 	memcpy(pub, public_key, sizeof(sgx_ec256_public_t));

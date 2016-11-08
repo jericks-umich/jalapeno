@@ -51,7 +51,7 @@ ifeq ($(SGX_ARCH), x86)
 	SGX_ENCLAVE_SIGNER := $(SGX_SDK)/bin/x86/sgx_sign
 	SGX_EDGER8R := $(SGX_SDK)/bin/x86/sgx_edger8r
 else
-	SGX_COMMON_CFLAGS := -m64
+	SGX_COMMON_CFLAGS := -m64 
 	SGX_LIBRARY_PATH := $(SGX_SDK)/lib64
 	SGX_ENCLAVE_SIGNER := $(SGX_SDK)/bin/x64/sgx_sign
 	SGX_EDGER8R := $(SGX_SDK)/bin/x64/sgx_edger8r

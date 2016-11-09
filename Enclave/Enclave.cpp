@@ -4,6 +4,7 @@
 
 #include "sgx_error.h"
 #include "sgx_tcrypto.h"
+#include "sgx_tseal.h"
 
 #include "Enclave_t.h"
 #include "Enclave.h"
@@ -22,49 +23,121 @@ int say_hello() {
 
 // pub is for passing back the new public key
 sgx_status_t genKey(sgx_ec256_public_t* pub) {
-	// char str[]          = "Called genKey()";
-	// int retval          = 0;
+  // allocate local variables
+  int retval;
+  jalapeno_status_t j_status;
 	sgx_status_t status = SGX_SUCCESS;
-
 	sgx_ecc_state_handle_t ecc_handle;
-	sgx_ec256_private_t    *private_key = NULL;
-	sgx_ec256_public_t     *public_key  = NULL;
+	//sgx_ec256_private_t private_key;
+	//sgx_ec256_public_t public_key;
+  keypair kp; // defined in Enclave.h, includes public and private key members
+  uint32_t kp_len = sizeof(kp);
+  uint32_t seal_size = 0;
+  sgx_sealed_data_t* sealed_data;
+
+#define MAC_TEXT "JALAPENO v1.0"
+  uint8_t mac_text[sizeof(MAC_TEXT)];
+  uint8_t mac_text_check[sizeof(MAC_TEXT)];
+  memcpy(mac_text, MAC_TEXT, sizeof(MAC_TEXT));
+  uint32_t mac_text_len = sizeof(MAC_TEXT);
+
+  // calculate how much space the sealed keys will take
+  //seal_size = sgx_calc_sealed_data_size(mac_text_len, kp_len);
+  seal_size = sgx_calc_sealed_data_size(0, kp_len);
+  if (seal_size == UINT32_MAX) {
+    return SGX_ERROR_OUT_OF_MEMORY;
+  }
+
+  // attempt to restore existing key from disk
+  sealed_data = (sgx_sealed_data_t*) malloc(seal_size);
+  status = ocall_retrieve_sealed_keys(&j_status, (uint8_t*) sealed_data, seal_size);
+  if (status != SGX_SUCCESS) {
+    free(sealed_data);
+		return status;
+	}
+
+  if (j_status == J_OK) { // if we retrieved the sealed data from disk successfully
+    char msg2[] = "Retrieved keypair from disk";
+    ocall_prints(&retval, msg2);
+    // attempt to unseal existing keypair into our local keypair var
+    //status = sgx_unseal_data(sealed_data, mac_text_check, &mac_text_len, (uint8_t*) &kp, &kp_len);
+    status = sgx_unseal_data(sealed_data, NULL, 0, (uint8_t*) &kp, &kp_len);
+    free(sealed_data);
+    if (status != SGX_SUCCESS) {
+      return status;
+    }
+    // check if mac_text matches
+    //if (memcmp(mac_text, mac_text_check, mac_text_len) != 0) {
+    //  return SGX_ERROR_UNEXPECTED;
+    //}
+    char msg3[] = "Successfully unsealed keypair";
+    ocall_prints(&retval, msg3);
+    memcpy(pub, &kp.pub, sizeof(sgx_ec256_public_t));
+    return SGX_SUCCESS;
+  }
+  free(sealed_data);
+
+  // if we get here, then we were unable to retrieve the keypair and should make a new one
+  char msg4[] = "Creating new keypair";
+  ocall_prints(&retval, msg4);
 
 	// Open ECC256 Context
-	if(SGXAPI sgx_ecc256_open_context(&ecc_handle) != SGX_SUCCESS){
-		return SGX_ERROR_UNEXPECTED;
-	}
-
-	// Allocate Enclave Memory for EC265 Private Key
-	private_key = (sgx_ec256_private_t*)malloc( sizeof( sgx_ec256_private_t ));
-	if (private_key == NULL){
-		return SGX_ERROR_OUT_OF_MEMORY;
-	}
-
-	// Allocate Enclave Memory for EC265 Public Key
-	public_key = (sgx_ec256_public_t*)malloc( sizeof( sgx_ec256_public_t ));
-	if (public_key == NULL){
-		return SGX_ERROR_OUT_OF_MEMORY;
+  status = sgx_ecc256_open_context(&ecc_handle);
+  if (status != SGX_SUCCESS) {
+		return status;
 	}
 
 	// Generate ECC256 Key Pair with ECC256 Context
-	if(SGXAPI sgx_ecc256_create_key_pair(private_key, public_key, ecc_handle) != SGX_SUCCESS){
-		return SGX_ERROR_UNEXPECTED;
+  status = sgx_ecc256_create_key_pair(&kp.priv, &kp.pub, ecc_handle);
+  if (status != SGX_SUCCESS) {
+		return status;
 	}
 
 	// Close ECC256 Context
-	if(SGXAPI sgx_ecc256_close_context(ecc_handle) != SGX_SUCCESS){
-		return SGX_ERROR_UNEXPECTED; 
+  status = sgx_ecc256_close_context(ecc_handle);
+  if (status != SGX_SUCCESS) {
+		return status;
 	}
+
 
 	// Update Key-pair Hashtable
 //	if (ec256_keys.find(public_key) == ec256_keys.end()){
 //		ec256_keys[ public_key ] = private_key;
 //	}
 
-	// Copy memory of public key
-	memcpy(pub, public_key, sizeof(sgx_ec256_public_t));
-	// ocall_prints(&retval, str);
+  // Seal keys for storage
+  sealed_data = (sgx_sealed_data_t*) malloc(seal_size);
+  //status = sgx_seal_data(mac_text_len, mac_text, kp_len, (uint8_t*) &kp, seal_size, sealed_data);
+  status = sgx_seal_data(0, NULL, kp_len, (uint8_t*) &kp, seal_size, sealed_data);
+  if (status != SGX_SUCCESS) {
+    char msg41[] = "Problem sealing data";
+    ocall_prints(&retval, msg41);
+    free(sealed_data);
+    return status;
+  }
+  char msg5[] = "Sealed keys";
+  ocall_prints(&retval, msg5);
+
+  // store the public and private key to disk
+  status = ocall_store_sealed_keys(&j_status, (uint8_t*) sealed_data, seal_size);
+  free(sealed_data);
+  if (status != SGX_SUCCESS) {
+    return status;
+  }
+  if (j_status != J_OK) {
+    // TODO: log something using j_status
+    return SGX_ERROR_UNEXPECTED;
+  }
+
+  char msg6[] = "Stored sealed keys";
+  ocall_prints(&retval, msg6);
+
+	// Copy memory of public key to return buffer and return
+	memcpy(pub, &kp.pub, sizeof(sgx_ec256_public_t));
+
+  char msg7[] = "This is a debug test";
+  ocall_prints(&retval, msg7);
+
 	return SGX_SUCCESS;
 }
 

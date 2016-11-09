@@ -10,19 +10,19 @@
 #include "sgx_error.h"
 
 #include "jalapeno.h"
+#include "../include/status.h"
 
 #include "Enclave_u.h"
 
 #define MAX_PATH FILENAME_MAX
 
+// TODO: remove this when it is no longer needed
+#define STORE_FILENAME "/tmp/sgx_test_store.dump"
+
 //#define SGX_DEBUG_FLAG 1 // debug mode enabled
 
 // Global enclave id
 sgx_enclave_id_t global_eid = 0;
-
-int ocall_prints(const char* str) {
-  printf("The enclave prints: \"%s\"\n", str);
-}
 
 // CDECL tells the compiler that the caller will do arg cleanup
 int SGX_CDECL main(int argc, char* argv[]) {
@@ -77,7 +77,44 @@ int SGX_CDECL main(int argc, char* argv[]) {
   printf("Return status from debug_sign: %d\n", retval);
   printf("This is the returned signature: %u\n", signature.x[0]);
 
+  // try to generate a second key and see if it matches the first one
+  status = genKey(global_eid, &retval, &pub);
+  printf("Return status from genKey: %d\n", retval);
+  print_ec256_pub_key(&pub);
+  // now remove file so next time we recreate it
+  remove(STORE_FILENAME);
+
   return 0;
+}
+
+////////////
+// OCALLS //
+////////////
+
+int ocall_prints(const char* str) {
+  printf("The enclave prints: \"%s\"\n", str);
+}
+
+jalapeno_status_t ocall_store_sealed_keys(const uint8_t* sealed_data, uint32_t len) {
+  FILE* fp;
+  fp = fopen(STORE_FILENAME, "wb");
+  if (fp == NULL) {
+    return J_CANT_OPEN_FILE;
+  }
+  fwrite(sealed_data, sizeof(uint8_t), len, fp);
+  fclose(fp);
+  return J_OK;
+}
+
+jalapeno_status_t ocall_retrieve_sealed_keys(uint8_t* sealed_data, uint32_t len) {
+  FILE* fp;
+  fp = fopen(STORE_FILENAME, "rb");
+  if (fp == NULL) {
+    return J_CANT_OPEN_FILE;
+  }
+  fread(sealed_data, sizeof(uint8_t), len, fp);
+  fclose(fp);
+  return J_OK;
 }
 
 /////////////

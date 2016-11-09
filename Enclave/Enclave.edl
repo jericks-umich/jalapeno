@@ -1,6 +1,7 @@
 enclave {
 	include "sgx_tcrypto.h"
 	include "sgx_error.h"
+	include "../include/status.h"
 
 	trusted {
 		// generates new public and private ecdsa keys, persistently stores the private key for later operations
@@ -42,6 +43,11 @@ enclave {
 	untrusted {
 		// keep this around for debugging
 		int ocall_prints([in, string] const char* str);
+		
+		// sealing functions
+		jalapeno_status_t ocall_store_sealed_keys([in,count=len] const uint8_t* sealed_data, uint32_t len);
+		jalapeno_status_t ocall_retrieve_sealed_keys([out,count=len] uint8_t* sealed_data, uint32_t len);
+
 	};
 	
 };

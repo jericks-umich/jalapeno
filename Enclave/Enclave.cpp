@@ -13,140 +13,291 @@
 // PUBLIC //
 ////////////
 
-keypair ec256_key_pairs[ NUMBER_OF_EC256_KEY_PAIRS ];
+ec256_key_handle_t *ec256_key_handles = NULL; // Global EC256 Key Store Cache
 
-int say_hello() {
-	char str[] = "Hello SGX!";
+sgx_status_t generate_ec256_key_pair( sgx_ec256_public_t* pub ){
+	int retval			= 0;  // debug print return value
+	int key_index 		= 0;  // index handle to ec256 key pair in key store
+	int key_byte_index 	= 0;  // index to key byte in pub or priv ec256 key
+	int free_key_handle = -1; // index to next available ec256 key pair bin in key store
+	sgx_status_t status = SGX_SUCCESS;  // SGX status value
+	sgx_ecc_state_handle_t 	ecc_handle; // handle to SGX EC context
 
-	int retval;
-	ocall_prints(&retval, str);
-	return SGX_SUCCESS;
-}
-
-// pub is for passing back the new public key
-sgx_status_t genKey(sgx_ec256_public_t* pub) {
-	// allocate local variables
-	int retval; // debug print return value
-
-	jalapeno_status_t 		j_status = J_OK; // custom status value
-	sgx_status_t 			status   = SGX_SUCCESS; // SGX status value
-	sgx_ecc_state_handle_t 	ecc_handle;
-	keypair 				kp; // defined in Enclave.h, includes public and private key members
-	uint32_t 				kp_len = sizeof(kp);
-	uint32_t 				seal_size = 0;
-	sgx_sealed_data_t* 		sealed_data;
-
-	#define MAC_TEXT "JALAPENO v1.0"
-	uint8_t mac_text[sizeof(MAC_TEXT)];
-	uint8_t mac_text_check[sizeof(MAC_TEXT)];
-	memcpy(mac_text, MAC_TEXT, sizeof(MAC_TEXT));
-	uint32_t mac_text_len = sizeof(MAC_TEXT);
-
-	// calculate how much space the sealed keys will take
-	//seal_size = sgx_calc_sealed_data_size(mac_text_len, kp_len);
-	seal_size = sgx_calc_sealed_data_size(0, kp_len);
-	if (seal_size == UINT32_MAX) {
-		return SGX_ERROR_OUT_OF_MEMORY;
-	}
-
-	// attempt to restore existing key from disk
-	sealed_data = (sgx_sealed_data_t*) malloc(seal_size);
-	status = ocall_retrieve_sealed_keys(&j_status, (uint8_t*) sealed_data, seal_size);
-	if (status != SGX_SUCCESS) {
-		free(sealed_data);
-		return status;
-	}
-
-	if (j_status == J_OK) { // if we retrieved the sealed data from disk successfully
-		char msg2[] = "Retrieved keypair from disk";
-		ocall_prints(&retval, msg2);
-		// attempt to unseal existing keypair into our local keypair var
-		//status = sgx_unseal_data(sealed_data, mac_text_check, &mac_text_len, (uint8_t*) &kp, &kp_len);
-		status = sgx_unseal_data(sealed_data, NULL, 0, (uint8_t*) &kp, &kp_len);
-		free(sealed_data);
-		if (status != SGX_SUCCESS) {
-			return status;
+	// Check if Cached Key Handles Available
+	if ( ec256_key_handles == NULL ){
+		ec256_key_handles = (ec256_key_handle_t*)malloc( NUMBER_OF_EC256_KEY_PAIRS*sizeof( ec256_key_handle_t ));
+		if ( ec256_key_handles == NULL ){
+			char msg[] = "ERROR: could not allocate memory for key pair store cache.";
+			ocall_prints( &retval, msg );
+			return SGX_ERROR_OUT_OF_MEMORY;
 		}
-		// check if mac_text matches
-		//if (memcmp(mac_text, mac_text_check, mac_text_len) != 0) {
-		//  return SGX_ERROR_UNEXPECTED;
-		//}
-		char msg3[] = "Successfully unsealed keypair";
-		ocall_prints(&retval, msg3);
-		memcpy(pub, &kp.pub, sizeof(sgx_ec256_public_t));
-		return SGX_SUCCESS;
+
+		// Try to load existing sealed keys from disk
+		if ( load_ec256_keys() != SGX_SUCCESS ){
+			// Initialize cached EC256 key store
+			char msg1[] = "Initializing new EC256 key store cache...";
+			ocall_prints(&retval, msg1);
+			for ( key_index = 0; key_index < NUMBER_OF_EC256_KEY_PAIRS; key_index++ ){
+				ec256_key_handles[ key_index ].in_use = false;
+				for ( key_byte_index = 0; key_byte_index < SGX_ECP256_KEY_SIZE; key_byte_index++ ){
+					ec256_key_handles[ key_index ].key_pair.priv.r[ key_byte_index ] = 0;
+					ec256_key_handles[ key_index ].key_pair.pub.gx[ key_byte_index ] = 0;
+					ec256_key_handles[ key_index ].key_pair.pub.gy[ key_byte_index ] = 0;
+				}
+			}
+		}
 	}
-	free(sealed_data);
 
-	// if we get here, then we were unable to retrieve the keypair and should make a new one
-	char msg4[] = "Creating new keypair";
-	ocall_prints(&retval, msg4);
+	// Generate a new EC256 key pair, add to cached key store, and backup on disk
+	char msg2[] = "Creating new EC256 key pair...";
+	ocall_prints(&retval, msg2);
 
-	// Open ECC256 Context
+	// Find first key pair handle not in use, scaning through all to eliminate timing side channel
+	free_key_handle = -1;
+	for ( key_index = 0; key_index < NUMBER_OF_EC256_KEY_PAIRS; key_index++ ){
+		if ( ec256_key_handles[ key_index ].in_use == false && free_key_handle == -1 ){
+			free_key_handle = key_index;
+		}
+	}
+	sgx_ec256_private_t *private_key 		 	= &ec256_key_handles[ free_key_handle ].key_pair.priv;
+	sgx_ec256_public_t  *public_key  			= &ec256_key_handles[ free_key_handle ].key_pair.pub;
+
+	// Open ECC256 context
 	status = sgx_ecc256_open_context(&ecc_handle);
-	if (status != SGX_SUCCESS) {
+	if ( status != SGX_SUCCESS ){
 		return status;
 	}
 
-	// Generate ECC256 Key Pair with ECC256 Context
-	status = sgx_ecc256_create_key_pair(&kp.priv, &kp.pub, ecc_handle);
-	if (status != SGX_SUCCESS) {
+	// Generate ECC256 key pair with ECC256 context, caching in key store
+	status = sgx_ecc256_create_key_pair(private_key, public_key, ecc_handle);
+	if ( status != SGX_SUCCESS ){
 		return status;
 	}
 
-	// Close ECC256 Context
+	// Close ECC256 context
 	status = sgx_ecc256_close_context(ecc_handle);
-	if (status != SGX_SUCCESS) {
+	if ( status != SGX_SUCCESS ){
 		return status;
 	}
 
-	// Seal keys for storage
-	sealed_data = (sgx_sealed_data_t*) malloc(seal_size);
-	//status = sgx_seal_data(mac_text_len, mac_text, kp_len, (uint8_t*) &kp, seal_size, sealed_data);
-	status = sgx_seal_data(0, NULL, kp_len, (uint8_t*) &kp, seal_size, sealed_data);
-	if (status != SGX_SUCCESS) {
-	char msg41[] = "Problem sealing data";
-	ocall_prints(&retval, msg41);
-	free(sealed_data);
+	// Back up modified EC256 key store on disk
+	if ( store_ec256_keys() != SGX_SUCCESS ){
+		// Do not save newly generated key pair if it cannot be backed up on disk (line 93 marks the key as valid)
+		char msg3[] = "ERROR: unable to backup EC256 key store on disk.\n    New EC256 key pair destroyed.";
+		ocall_prints(&retval, msg3);
 		return status;
 	}
-	char msg5[] = "Sealed keys";
-	ocall_prints(&retval, msg5);
-
-	// store the public and private key to disk
-	status = ocall_store_sealed_keys(&j_status, (uint8_t*) sealed_data, seal_size);
-	free(sealed_data);
-	if (status != SGX_SUCCESS) {
-		return status;
-	}
-	if (j_status != J_OK) {
-	// TODO: log something using j_status
-		return SGX_ERROR_UNEXPECTED;
-	}
-
-	char msg6[] = "Stored sealed keys";
-	ocall_prints(&retval, msg6);
 
 	// Copy memory of public key to return buffer and return
-	memcpy(pub, &kp.pub, sizeof(sgx_ec256_public_t));
+	ec256_key_handles[ free_key_handle ].in_use = true;
+	memcpy(pub, public_key, sizeof(sgx_ec256_public_t));
 
-	char msg7[] = "This is a debug test";
-	ocall_prints(&retval, msg7);
-
+	char msg4[] = "SUCCESS: generated new EC256 key pair and added to key store.";
+	ocall_prints(&retval, msg4);
 	return SGX_SUCCESS;
 }
 
 // pub is input for finding the keypair to delete them
-sgx_status_t delKey(sgx_ec256_public_t* pub) {
-	char str[] = "Called delKey()";
-	int retval;
-	ocall_prints(&retval, str);
+sgx_status_t delete_ec256_key_pair( sgx_ec256_public_t* pub ){
+	int retval				 = 0; 			 // debug print return value
+	int key_index 			 = 0; 			 // index handle to ec256 key pair in key store
+	int key_to_delete_handle = -1; 			 // index to next available ec256 key pair bin in key store
+	sgx_status_t status 	 = SGX_SUCCESS;  // SGX status value
+
+	// Check if Cached Key Handles Available
+	if ( ec256_key_handles == NULL ){
+		// Allocate memory for EC256 key store cache
+		ec256_key_handles = (ec256_key_handle_t*)malloc( NUMBER_OF_EC256_KEY_PAIRS*sizeof( ec256_key_handle_t ));
+		if ( ec256_key_handles == NULL ){
+			char msg[] = "ERROR: could not allocate memory for key pair store cache.";
+			ocall_prints( &retval, msg );
+			return SGX_ERROR_OUT_OF_MEMORY;
+		}
+		
+		// Try to load existing sealed keys from disk
+		if ( load_ec256_keys() != SGX_SUCCESS ){
+			free( ec256_key_handles );
+			char msg1[] = "WARNING: no EC256 key store to delete key from.";
+			ocall_prints( &retval, msg1 );
+			return SGX_ERROR_INVALID_STATE;
+		}
+	}
+
+	// Iterate through key store to delete key pair, go through all keys to eliminate timing side channel
+	key_to_delete_handle = -1;
+	for ( key_index = 0; key_index < NUMBER_OF_EC256_KEY_PAIRS; key_index++ ){
+		if ( memcmp( pub, &ec256_key_handles[ key_index ].key_pair.pub, sizeof(sgx_ec256_public_t) ) == 0 &&
+			ec256_key_handles[ key_index ].in_use == true){
+
+			// Only mark one key handle to be deleted (in case where pub key passed in is all 0s)
+			if ( key_to_delete_handle == -1 ){
+				key_to_delete_handle = key_index;
+			}
+		}
+	}
+
+	// Delete key pair by marking it available for use
+	ec256_key_handles[ key_to_delete_handle ].in_use = false;
+
+	// Write modified key store to disk
+	if ( store_ec256_keys() != SGX_SUCCESS ){
+		// Do not delete generated key pair if it cannot be coherent on disk
+		ec256_key_handles[ key_to_delete_handle ].in_use = true;
+		char msg2[] = "ERROR: unable to write modified EC256 key store to disk.\n    EC256 key pair NOT deleted.";
+		ocall_prints(&retval, msg2);
+		return status;
+	}
+
+	return SGX_SUCCESS;
+}
+
+sgx_status_t flush_ec256_key_pair_cache(){
+	int retval  = 0; // debug print return value
+
+	free( ec256_key_handles );
+	ec256_key_handles = NULL;
+	char msg1[] = "SUCCESS: Flushed EC256 key pair cache.";
+	ocall_prints(&retval, msg1);
 	return SGX_SUCCESS;
 }
 
 /////////////
 // PRIVATE //
 /////////////
+
+sgx_status_t load_ec256_keys(){
+	int 					retval 	 = 0; 	 		// debug print return value
+	jalapeno_status_t 		j_status = J_OK; 		// custom status value
+	sgx_status_t 			status   = SGX_SUCCESS; // SGX status value
+	sgx_ecc_state_handle_t 	ecc_handle;
+	uint32_t 				ec256_key_handles_length = NUMBER_OF_EC256_KEY_PAIRS * sizeof( ec256_key_handle_t );
+	uint32_t 				seal_size = 0;
+	sgx_sealed_data_t* 		sealed_data;
+
+	// #define MAC_TEXT "JALAPENO v1.0"
+	// uint8_t mac_text[sizeof(MAC_TEXT)];
+	// uint8_t mac_text_check[sizeof(MAC_TEXT)];
+	// memcpy(mac_text, MAC_TEXT, sizeof(MAC_TEXT));
+	// uint32_t mac_text_len = sizeof(MAC_TEXT);
+
+	// calculate how much space the sealed keys will take
+	//seal_size = sgx_calc_sealed_data_size( mac_text_len, ec256_key_handles_length );
+	seal_size = sgx_calc_sealed_data_size( 0, ec256_key_handles_length );
+	if (seal_size == UINT32_MAX ){
+		return SGX_ERROR_OUT_OF_MEMORY;
+	}
+	
+	// attempt to load sealed keys from disk
+	sealed_data = (sgx_sealed_data_t*) malloc( seal_size );
+	if ( sealed_data == NULL ){
+		char msg[] = "ERROR: could not allocate memory for sealed data.";
+		ocall_prints( &retval, msg );
+		return SGX_ERROR_OUT_OF_MEMORY;
+	}
+	status = ocall_load_sealed_keys( &j_status, (uint8_t*) sealed_data, seal_size );
+	if ( status != SGX_SUCCESS ){
+		free( sealed_data );
+		char msg1[] = "ERROR: could not retrieved sealed EC256 keys from disk.";
+		ocall_prints( &retval, msg1 );
+		return status;
+	}
+	else if ( j_status == J_CANT_OPEN_FILE ){
+		free( sealed_data );
+		char msg2[] = "WARNING: problem opening sealed EC256 keys file from disk.";
+		ocall_prints( &retval, msg2 );
+		return SGX_ERROR_INVALID_STATE;
+	}
+	char msg3[] = "SUCCESS: retrieved sealed EC256 keys from disk.";
+	ocall_prints( &retval, msg3 );
+
+	// attempt to unseal and cache successfully loaded key data
+	//status = sgx_unseal_data(sealed_data, mac_text_check, &mac_text_len, (uint8_t*)ec256_key_handles, &ec256_key_handles_length);
+	status = sgx_unseal_data( sealed_data, NULL, 0, (uint8_t*)ec256_key_handles, &ec256_key_handles_length );
+	free( sealed_data );
+	if ( status != SGX_SUCCESS ){
+		char msg4[] = "ERROR: could not unseal EC256 keys.";
+		ocall_prints( &retval, msg4 );
+		return status;
+	}
+	// check if mac_text matches
+	//if (memcmp( mac_text, mac_text_check, mac_text_len ) != 0) {
+	//  return SGX_ERROR_UNEXPECTED;
+	//}
+	char msg5[] = "SUCCESS: unsealed and cached EC256 keys.";
+	ocall_prints( &retval, msg5 );	
+	return SGX_SUCCESS;
+}
+
+// Seal and store EC256 keys to disk
+sgx_status_t store_ec256_keys(){
+	int 					retval 	 = 0; 	 		// debug print return value
+	jalapeno_status_t 		j_status = J_OK; 		// custom status value
+	sgx_status_t 			status   = SGX_SUCCESS; // SGX status value
+
+	sgx_ecc_state_handle_t 	ecc_handle 				 = NULL;
+	uint32_t 				ec256_key_handles_length = NUMBER_OF_EC256_KEY_PAIRS * sizeof( ec256_key_handle_t );
+	uint32_t 				seal_size 				 = 0;
+	sgx_sealed_data_t* 		sealed_data 			 = NULL;
+
+	// #define MAC_TEXT "JALAPENO v1.0"
+	// uint8_t mac_text[sizeof(MAC_TEXT)];
+	// uint8_t mac_text_check[sizeof(MAC_TEXT)];
+	// memcpy(mac_text, MAC_TEXT, sizeof(MAC_TEXT));
+	// uint32_t mac_text_len = sizeof(MAC_TEXT);
+
+	// calculate how much space the sealed EC256 keys will take
+	seal_size = sgx_calc_sealed_data_size( 0, ec256_key_handles_length );
+	if (seal_size == UINT32_MAX) {
+		return SGX_ERROR_OUT_OF_MEMORY;
+	}
+
+	// seal cached EC256 key store
+	sealed_data = (sgx_sealed_data_t*) malloc( seal_size );
+	if ( sealed_data == NULL ){
+		char msg[] = "ERROR: could not allocate memory for sealed data.";
+		ocall_prints( &retval, msg );
+		return SGX_ERROR_OUT_OF_MEMORY;
+	}
+	//status = sgx_seal_data( mac_text_len, mac_text, ec256_key_handles_length, (uint8_t*) &ec256_key_handles, seal_size, sealed_data );
+	status = sgx_seal_data( 0, NULL, ec256_key_handles_length, (uint8_t*)ec256_key_handles, seal_size, sealed_data );
+	if (status != SGX_SUCCESS) {
+		char msg1[] = "ERROR: cannot seal EC256 key store.";
+		ocall_prints( &retval, msg1 );
+		free( sealed_data) ;
+		return status;
+	}
+	char msg2[] = "SUCCESS: sealed EC256 key store.";
+	ocall_prints( &retval, msg2 );
+
+	// store the sealed EC256 key to disk
+	status = ocall_store_sealed_keys( &j_status, (uint8_t*) sealed_data, seal_size );
+	free( sealed_data );
+	if (status != SGX_SUCCESS || j_status != J_OK) {
+		char msg3[] = "ERROR: cannot store EC256 key store to disk.";
+		ocall_prints( &retval, msg3 );
+		return status;
+	}
+
+	char msg4[] = "SUCCESS: stored sealed EC256 keys to disk.";
+	ocall_prints( &retval, msg4 );
+	return SGX_SUCCESS;
+}
+
+// counts and returns the number of in-use keys in key store cache
+int get_num_ec256_key_pairs(){
+	int key_index 			 	  = 0; // index handle to ec256 key pair in key store
+	int num_valid_ec256_key_pairs = 0; // number of valid key pairs in key store cache
+
+	if (ec256_key_handles != NULL){
+		for ( key_index = 0; key_index < NUMBER_OF_EC256_KEY_PAIRS; key_index++ ){
+			if (ec256_key_handles[ key_index ].in_use == true){
+				num_valid_ec256_key_pairs++;
+			}
+		}
+	}
+
+	return num_valid_ec256_key_pairs;
+}
 
 // ciphertext, len, and pub are inputs, plaintext is output
 sgx_status_t decrypt(const uint8_t* ciphertext, uint32_t len, sgx_ec256_public_t* pub, uint8_t* plaintext) {
@@ -174,6 +325,36 @@ sgx_status_t sign(const uint8_t* plaintext, uint32_t len, sgx_ec256_public_t* pu
 //////////////////
 // PUBLIC DEBUG //
 //////////////////
+
+sgx_status_t debug_number_ec256_key_pairs( int* num_keys ){
+	int retval = 0;
+
+	// Check if key store is cached in memory	
+	if ( ec256_key_handles == NULL ){
+		// Allocate memory for EC256 key store cache
+		ec256_key_handles = (ec256_key_handle_t*)malloc( NUMBER_OF_EC256_KEY_PAIRS*sizeof( ec256_key_handle_t ));
+		if ( ec256_key_handles == NULL ){
+			char msg[] = "ERROR: could not allocate memory for key pair store cache.";
+			ocall_prints( &retval, msg );
+			return SGX_ERROR_OUT_OF_MEMORY;
+		}
+		if ( load_ec256_keys() != SGX_SUCCESS ){
+			// No key store exists!
+			*num_keys = 0;
+			free( ec256_key_handles );
+			ec256_key_handles = NULL;
+		}
+		else{
+			// Key store was on disk and has now been cached
+			*num_keys = get_num_ec256_key_pairs();
+		}
+	}
+	else{
+		// Key store was cached
+		*num_keys = get_num_ec256_key_pairs();
+	}
+	return SGX_SUCCESS;
+}
 
 // ciphertext, len, and pub are inputs, plaintext is output
 sgx_status_t debug_decrypt(const uint8_t* ciphertext, uint32_t len, sgx_ec256_public_t* pub, uint8_t* plaintext) {

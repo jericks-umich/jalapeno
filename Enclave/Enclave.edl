@@ -4,14 +4,19 @@ enclave {
 	include "../include/status.h"
 
 	trusted {
-		// generates new public and private ecdsa keys, persistently stores the private key for later operations
+		// generates a new public and private ec256 key pair, caches the key pair in memory, and persistently stores key pairs on disk
 		// the public key is returned for untrusted use, and to identify which private key should be used later on
-		public sgx_status_t genKey([out] sgx_ec256_public_t* pub);
+		public sgx_status_t generate_ec256_key_pair([out] sgx_ec256_public_t* pub);
 
-		// deletes the public/private keypair associated with the input public key
-		public sgx_status_t delKey([in] sgx_ec256_public_t* pub); 
+		// deletes the public/private key pair associated with the input public key, and updates persistent key store on disk
+		public sgx_status_t delete_ec256_key_pair([in] sgx_ec256_public_t* pub); 
+
+		// flushes the ec256 public/private keypair associated with the input public key
+		// frees memory allocated for key store cache AND removes persistent ec256 key store file on disk 
+		public sgx_status_t flush_ec256_key_pair_cache(); 
 
 		// The following functions are for TESTING ONLY
+		public sgx_status_t debug_number_ec256_key_pairs([out] int* num_keys);
 
 		// input: 
 		//	Pointer to a buffer of encrypted bytes
@@ -46,7 +51,7 @@ enclave {
 		
 		// sealing functions
 		jalapeno_status_t ocall_store_sealed_keys([in,count=len] const uint8_t* sealed_data, uint32_t len);
-		jalapeno_status_t ocall_retrieve_sealed_keys([out,count=len] uint8_t* sealed_data, uint32_t len);
+		jalapeno_status_t ocall_load_sealed_keys([out,count=len] uint8_t* sealed_data, uint32_t len);
 
 	};
 	

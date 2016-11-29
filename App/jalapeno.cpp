@@ -190,7 +190,7 @@ void generate_2_keys_flush_and_delete_2(){
 	printf( "Number of EC256 key pairs: %d\n", num_keys );
 	printf( "Return status from generate_ec256_key_pair(): %d\n\n", retval_1 );
 
-	// 2. Generate EC256 Public-Private Key Pair 1
+	// 2. Generate EC256 Public-Private Key Pair 2
 	printf( "Generating EC256 key pair 2...\n" );
 	status = generate_ec256_key_pair( global_eid, &retval_1, &pub_2 );
 	print_ec256_pub_key( &pub_2 );

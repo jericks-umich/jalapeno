@@ -25,7 +25,7 @@ sgx_status_t generate_ec256_key_pair( sgx_ec256_public_t* pub ){
 
 	// Check if Cached Key Handles Available
 	if ( ec256_key_handles == NULL ){
-		ec256_key_handles = (ec256_key_handle_t*)malloc( NUMBER_OF_EC256_KEY_PAIRS*sizeof( ec256_key_handle_t ));
+		ec256_key_handles = (ec256_key_handle_t*)calloc(NUMBER_OF_EC256_KEY_PAIRS,sizeof( ec256_key_handle_t ));
 		if ( ec256_key_handles == NULL ){
 			char msg[] = "ERROR: could not allocate memory for key pair store cache.";
 			ocall_prints( &retval, msg );
@@ -35,16 +35,16 @@ sgx_status_t generate_ec256_key_pair( sgx_ec256_public_t* pub ){
 		// Try to load existing sealed keys from disk
 		if ( load_ec256_keys() != SGX_SUCCESS ){
 			// Initialize cached EC256 key store
-			char msg1[] = "Initializing new EC256 key store cache...";
+			char msg1[] = "Could not load sealed keys from disk. Initializing new EC256 key store cache...";
 			ocall_prints(&retval, msg1);
-			for ( key_index = 0; key_index < NUMBER_OF_EC256_KEY_PAIRS; key_index++ ){
-				ec256_key_handles[ key_index ].in_use = false;
-				for ( key_byte_index = 0; key_byte_index < SGX_ECP256_KEY_SIZE; key_byte_index++ ){
-					ec256_key_handles[ key_index ].key_pair.priv.r[ key_byte_index ] = 0;
-					ec256_key_handles[ key_index ].key_pair.pub.gx[ key_byte_index ] = 0;
-					ec256_key_handles[ key_index ].key_pair.pub.gy[ key_byte_index ] = 0;
-				}
-			}
+			//for ( key_index = 0; key_index < NUMBER_OF_EC256_KEY_PAIRS; key_index++ ){
+			//	ec256_key_handles[ key_index ].in_use = false;
+			//	for ( key_byte_index = 0; key_byte_index < SGX_ECP256_KEY_SIZE; key_byte_index++ ){
+			//		ec256_key_handles[ key_index ].key_pair.priv.r[ key_byte_index ] = 0;
+			//		ec256_key_handles[ key_index ].key_pair.pub.gx[ key_byte_index ] = 0;
+			//		ec256_key_handles[ key_index ].key_pair.pub.gy[ key_byte_index ] = 0;
+			//	}
+			//}
 		}
 	}
 

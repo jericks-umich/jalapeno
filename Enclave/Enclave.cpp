@@ -161,6 +161,13 @@ sgx_status_t flush_ec256_key_pair_cache(){
 	return SGX_SUCCESS;
 }
 
+sgx_status_t encrypt_aes_gcm(sgx_aes_gcm_128bit_tag_t* tag, 
+		uint8_t* ciphertext, uint32_t ciphertext_len, uint8_t* plaintext, uint32_t plaintext_len, 
+		sgx_ec256_public_t* local_pubkey, sgx_ec256_public_t* remote_pubkey, 
+		uint8_t* server_random, uint32_t server_random_len, uint8_t* client_random, uint32_t client_random_len) {
+	return SGX_SUCCESS;
+}
+
 /////////////
 // PRIVATE //
 /////////////

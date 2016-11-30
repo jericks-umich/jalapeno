@@ -329,6 +329,49 @@ sgx_status_t sign(const uint8_t* plaintext, uint32_t len, sgx_ec256_public_t* pu
 	return SGX_SUCCESS;
 }
 
+
+// helper functionn for PRF
+// inputs: key
+//         key_len
+//         msg
+//         msg_len
+// outputs: hash
+#define SHA256_BLOCKSIZE 32
+void hmac_sha256(sgx_sha256_hash_t* hash, uint8_t* key, uint32_t key_len, uint8_t* msg, uint32_t msg_len) {
+	// set up opad and ipad constants
+	//uint8_t opad[SHA256_BLOCKSIZE] = {0x5c, 0x5c, 0x5c, 0x5c, 0x5c, 0x5c, 0x5c, 0x5c, 0x5c, 0x5c, 0x5c, 0x5c, 0x5c, 0x5c, 0x5c, 0x5c, 0x5c, 0x5c, 0x5c, 0x5c, 0x5c, 0x5c, 0x5c, 0x5c, 0x5c, 0x5c, 0x5c, 0x5c, 0x5c, 0x5c, 0x5c, 0x5c};
+	//uint8_t ipad[SHA256_BLOCKSIZE] = {0x36, 0x36, 0x36, 0x36, 0x36, 0x36, 0x36, 0x36, 0x36, 0x36, 0x36, 0x36, 0x36, 0x36, 0x36, 0x36, 0x36, 0x36, 0x36, 0x36, 0x36, 0x36, 0x36, 0x36, 0x36, 0x36, 0x36, 0x36, 0x36, 0x36, 0x36, 0x36};
+	// check key and either pad or hash it to make key_k, size of one sha256 block (64 bytes)
+	uint8_t key_k[SHA256_BLOCKSIZE];
+	if (key_len > SHA256_BLOCKSIZE) { // if key is too long, hash it
+		sgx_sha256_msg(key, key_len, (sgx_sha256_hash_t*)key_k);
+	} else { // zero out the memory of key_k and copy over the given key (thereby padding the right bytes with zeroes)
+		memset(key_k, 0, SHA256_BLOCKSIZE);
+		memcpy(key_k, key, key_len);
+	}
+
+	uint8_t inner_hash[SHA256_BLOCKSIZE];
+	uint8_t outer_msg[SHA256_BLOCKSIZE*2];
+	// build inner_msg for hashing
+	uint8_t inner_msg[msg_len+SHA256_BLOCKSIZE];
+	for (int i=0; i<SHA256_BLOCKSIZE; i++) {
+		//inner_msg[i] = ipad[i] ^ key_k[i];
+		inner_msg[i] = 0x36 ^ key_k[i];
+	}
+	memcpy(&(inner_msg[SHA256_BLOCKSIZE]), msg, msg_len);
+	// hash inner_msg
+	sgx_sha256_msg(inner_msg, msg_len+SHA256_BLOCKSIZE, (sgx_sha256_hash_t*)inner_hash);
+	// build outer_msg for hashing
+	for (int i=0; i<SHA256_BLOCKSIZE; i++) {
+		//outer_msg[i] = opad[i] ^ key_k[i];
+		outer_msg[i] = 0x5c ^ key_k[i];
+	}
+	memcpy(&(outer_msg[SHA256_BLOCKSIZE]), inner_hash, SHA256_BLOCKSIZE);
+	// hash outer_msg
+	sgx_sha256_msg(outer_msg, SHA256_BLOCKSIZE*2, hash); // this puts our return value in the right place
+}
+
+
 //////////////////
 // PUBLIC DEBUG //
 //////////////////

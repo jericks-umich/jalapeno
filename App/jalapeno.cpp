@@ -49,23 +49,6 @@ int SGX_CDECL main(int argc, char* argv[]) {
 	// Test #2
 	//generate_2_keys_flush_and_delete_2();
 
-	// #define SECRET_MESSAGE "thisisasecretmessage"
-	// const uint8_t ciphertext[] = SECRET_MESSAGE;
-	// uint8_t plaintext[sizeof(SECRET_MESSAGE)];
-	// uint32_t len = sizeof(SECRET_MESSAGE);
-	// printf("Calling decrypt on secret message: %s\n", ciphertext);
-	// status = debug_decrypt(global_eid, &retval, ciphertext, len, &pub, plaintext);
-	// printf("This is the returned plaintext: %s\n", plaintext);
-	// printf("Return status from debug_decrypt: %d\n", retval);
-
-	// #define KNOWN_MESSAGE "thisisaknownmessage"
-	// const uint8_t new_plaintext[] = KNOWN_MESSAGE;
-	// uint32_t new_len = sizeof(KNOWN_MESSAGE);
-	// sgx_ec256_signature_t signature;
-	// status = debug_sign(global_eid, &retval, plaintext, new_len, &pub, &signature);
-	// printf("Return status from debug_sign: %d\n", retval);
-	// printf("This is the returned signature: %u\n", signature.x[0]);
-
 	return 0;
 }
 

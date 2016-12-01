@@ -41,13 +41,13 @@ int SGX_CDECL main(int argc, char* argv[]) {
 	printf("Return status from create: %d\n", ret);
 
 	// Test #3
-	webserver_ops();
+	// webserver_ops();
 
 	// Test #1
-	//generate_3_keys_and_delete_2();
+	// generate_3_keys_and_delete_2();
 
 	// Test #2
-	//generate_2_keys_flush_and_delete_2();
+	generate_2_keys_and_delete_1();
 
 	return 0;
 }
@@ -79,6 +79,11 @@ jalapeno_status_t ocall_load_sealed_keys( uint8_t* sealed_data, uint32_t len ) {
 	}
 	fread( sealed_data, sizeof(uint8_t), len, fp );
 	fclose( fp );
+	return J_OK;
+}
+
+jalapeno_status_t ocall_delete_sealed_keys_file() {
+	remove( STORE_FILENAME );
 	return J_OK;
 }
 
@@ -118,7 +123,7 @@ void generate_3_keys_and_delete_2(){
 	printf( "Number of EC256 key pairs: %d\n", num_keys );
 	printf( "Return status from generate_ec256_key_pair(): %d\n\n", retval_1 );
 
-	// 2. Generate EC256 Public-Private Key Pair 1
+	// 2. Generate EC256 Public-Private Key Pair 2
 	printf( "Generating EC256 key pair 2...\n" );
 	status = generate_ec256_key_pair( global_eid, &retval_1, &pub_2 );
 	print_ec256_pub_key( &pub_2 );
@@ -126,7 +131,7 @@ void generate_3_keys_and_delete_2(){
 	printf( "Number of EC256 key pairs: %d\n", num_keys );
 	printf( "Return status from generate_ec256_key_pair(): %d\n\n", retval_1 );
 
-	// 3. Generate EC256 Public-Private Key Pair 1
+	// 3. Generate EC256 Public-Private Key Pair 3
 	printf( "Generating EC256 key pair 3...\n" );
 	status = generate_ec256_key_pair( global_eid, &retval_1, &pub_3 );
 	print_ec256_pub_key( &pub_3 );
@@ -148,19 +153,15 @@ void generate_3_keys_and_delete_2(){
 	printf( "Number of EC256 key pairs: %d\n", num_keys );
 	printf( "Return status from delete_ec256_key_pair(): %d\n\n", retval_1 );
 
-	// 6. Flush key store cache
-	printf( "Flushing  EC256 key pair store...\n" );
-	status = flush_ec256_key_pair_cache( global_eid, &retval_1 );
+	// 6. Delete key store
+	printf( "Deleting EC256 key pair store...\n" );
+	status = delete_all_ec256_key_pairs( global_eid, &retval_1 );
 	status = debug_number_ec256_key_pairs( global_eid, &retval_2, &num_keys );
 	printf( "Number of EC256 key pairs: %d\n", num_keys );
-	printf( "Return status from delete_ec256_key_pair(): %d\n\n", retval_1 );
-
-	// 7. Remove key store file on disk
-	remove( STORE_FILENAME );
-	printf( "Deleted sealed key store file.\n\n" );
+	printf( "Return status from delete_all_ec256_key_pairs(): %d\n\n", retval_1 );
 }
 
-void generate_2_keys_flush_and_delete_2(){
+void generate_2_keys_and_delete_1(){
 	sgx_status_t 		status   = SGX_SUCCESS;
 	sgx_status_t 		retval_1 = SGX_SUCCESS;
 	sgx_status_t 		retval_2 = SGX_SUCCESS;
@@ -184,37 +185,19 @@ void generate_2_keys_flush_and_delete_2(){
 	printf( "Number of EC256 key pairs: %d\n", num_keys );
 	printf( "Return status from generate_ec256_key_pair(): %d\n\n", retval_1 );
 
-	// 3. Flush key store cache
-	printf( "Flushing  EC256 key pair store...\n" );
-	status = flush_ec256_key_pair_cache( global_eid, &retval_1 );
-	status = debug_number_ec256_key_pairs( global_eid, &retval_2, &num_keys );
-	printf( "Number of EC256 key pairs: %d\n", num_keys );
-	printf( "Return status from delete_ec256_key_pair(): %d\n\n", retval_1 );
-
-	// 4. Delete key pair 1
+	// 3. Delete key pair 1
 	printf( "Deleting  EC256 key pair 1...\n" );
 	status = delete_ec256_key_pair( global_eid, &retval_1, &pub_1 );
 	status = debug_number_ec256_key_pairs( global_eid, &retval_2, &num_keys );
 	printf( "Number of EC256 key pairs: %d\n", num_keys );
 	printf( "Return status from delete_ec256_key_pair(): %d\n\n", retval_1 );
 
-	// 5. Delete key pair 2
-	printf( "Deleting  EC256 key pair 2...\n" );
-	status = delete_ec256_key_pair( global_eid, &retval_1, &pub_2 );
+	// 4. Delete key store cache
+	printf( "Deleting EC256 key pair store...\n" );
+	status = delete_all_ec256_key_pairs( global_eid, &retval_1 );
 	status = debug_number_ec256_key_pairs( global_eid, &retval_2, &num_keys );
 	printf( "Number of EC256 key pairs: %d\n", num_keys );
-	printf( "Return status from delete_ec256_key_pair(): %d\n\n", retval_1 );
-
-	// 6. Flush key store cache
-	printf( "Flushing  EC256 key pair store...\n" );
-	status = flush_ec256_key_pair_cache( global_eid, &retval_1 );
-	status = debug_number_ec256_key_pairs( global_eid, &retval_2, &num_keys );
-	printf( "Number of EC256 key pairs: %d\n", num_keys );
-	printf( "Return status from delete_ec256_key_pair(): %d\n\n", retval_1 );
-
-	// 7. Remove key store file on disk
-	remove( STORE_FILENAME );
-	printf( "Deleted sealed key store file.\n\n" );
+	printf( "Return status from delete_all_ec256_key_pairs(): %d\n\n", retval_1 );
 }
 
 

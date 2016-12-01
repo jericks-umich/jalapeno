@@ -136,20 +136,23 @@ sgx_status_t delete_ec256_key_pair( sgx_ec256_public_t* pub ){
 		// Do not delete generated key pair if it cannot be coherent on disk
 		ec256_key_handles[ key_to_delete_handle ].in_use = true;
 		char msg2[] = "ERROR: unable to write modified EC256 key store to disk.\n    EC256 key pair NOT deleted.";
-		ocall_prints(&retval, msg2);
+		ocall_prints( &retval, msg2 );
 		return status;
 	}
 
 	return SGX_SUCCESS;
 }
 
-sgx_status_t flush_ec256_key_pair_cache(){
-	int retval  = 0; // debug print return value
+sgx_status_t delete_all_ec256_key_pairs(){
+	int retval  		   	   = 0; 
+	jalapeno_status_t j_status = J_OK; 
 
 	free( ec256_key_handles );
 	ec256_key_handles = NULL;
-	char msg1[] = "SUCCESS: Flushed EC256 key pair cache.";
-	ocall_prints(&retval, msg1);
+	ocall_delete_sealed_keys_file( &j_status );
+	char msg1[] = "Deleted sealed key store file.";
+	ocall_prints( &retval, msg1 );
+
 	return SGX_SUCCESS;
 }
 

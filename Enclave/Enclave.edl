@@ -15,35 +15,6 @@ enclave {
 		// frees memory allocated for key store cache AND removes persistent ec256 key store file on disk 
 		public sgx_status_t flush_ec256_key_pair_cache(); 
 
-		// The following functions are for TESTING ONLY
-		public sgx_status_t debug_number_ec256_key_pairs([out] int* num_keys);
-
-		// input: 
-		//	Pointer to a buffer of encrypted bytes
-		//	length of the buffer of encrypted bytes
-		//	the public key associated with the private key used for decryption
-		// output:
-		//	pointer to a buffer of decrypted bytes
-		public sgx_status_t debug_decrypt([in,count=len] const uint8_t* ciphertext, uint32_t len, [in] sgx_ec256_public_t* pub, [out,count=len] uint8_t* plaintext);
-
-		// input: 
-		//	Pointer to a buffer of plaintext bytes
-		//	length of the buffer of plaintext bytes
-		//	the public key associated with the private key used for encryption
-		// output:
-		//	pointer to a buffer of encrypted bytes
-		//public sgx_status_t debug_encrypt([in,count=len] const uint8_t* plaintext, uint32_t len, [in] sgx_ec256_public_t* pub, [out,count=len] uint8_t* ciphertext);
-		// Note: we didn't talk about this function, so it's commented out, but I put it here just for reference
-
-		// input: 
-		//	Pointer to a buffer of plaintext bytes
-		//	length of the buffer of plaintext bytes
-		//	the public key associated with the private key used for signing
-		// output:
-		//	pointer to the signature
-		public sgx_status_t debug_sign([in,count=len] const uint8_t* plaintext, uint32_t len, [in] sgx_ec256_public_t* pub, [out] sgx_ec256_signature_t* signature);
-
-
 		// input:
 		//	plaintext	          pointer to buffer of plaintext bytes
 		//	plaintext_len       length of plaintext buffer
@@ -61,6 +32,10 @@ enclave {
 		// decrypt is just the opposite for in/out -- ciphertext and tag go in, plaintext comes out
 		public sgx_status_t decrypt_aes_gcm([in,size=16,count=1] sgx_aes_gcm_128bit_tag_t* tag, [in,count=plaintext_len] uint8_t* ciphertext, [out,count=plaintext_len] uint8_t* plaintext, uint32_t plaintext_len, [in] sgx_ec256_public_t* server_pubkey, [in] sgx_ec256_public_t* client_pubkey, [in,count=server_random_len] uint8_t* server_random, uint32_t server_random_len, [in,count=client_random_len] uint8_t* client_random, uint32_t client_random_len, uint8_t is_client);
 
+		///////////////////////
+		// TESTING FUNCTIONS //
+		///////////////////////
+		public sgx_status_t debug_number_ec256_key_pairs([out] int* num_keys);
 	};
 
 	untrusted {
@@ -70,7 +45,5 @@ enclave {
 		// sealing functions
 		jalapeno_status_t ocall_store_sealed_keys([in,count=len] const uint8_t* sealed_data, uint32_t len);
 		jalapeno_status_t ocall_load_sealed_keys([out,count=len] uint8_t* sealed_data, uint32_t len);
-
 	};
-	
 };

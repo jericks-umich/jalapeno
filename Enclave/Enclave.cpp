@@ -37,14 +37,6 @@ sgx_status_t generate_ec256_key_pair( sgx_ec256_public_t* pub ){
 			// Initialize cached EC256 key store
 			char msg1[] = "Could not load sealed keys from disk. Initializing new EC256 key store cache...";
 			ocall_prints(&retval, msg1);
-			//for ( key_index = 0; key_index < NUMBER_OF_EC256_KEY_PAIRS; key_index++ ){
-			//	ec256_key_handles[ key_index ].in_use = false;
-			//	for ( key_byte_index = 0; key_byte_index < SGX_ECP256_KEY_SIZE; key_byte_index++ ){
-			//		ec256_key_handles[ key_index ].key_pair.priv.r[ key_byte_index ] = 0;
-			//		ec256_key_handles[ key_index ].key_pair.pub.gx[ key_byte_index ] = 0;
-			//		ec256_key_handles[ key_index ].key_pair.pub.gy[ key_byte_index ] = 0;
-			//	}
-			//}
 		}
 	}
 
@@ -519,30 +511,6 @@ int get_num_ec256_key_pairs(){
 	return num_valid_ec256_key_pairs;
 }
 
-// ciphertext, len, and pub are inputs, plaintext is output
-sgx_status_t decrypt(const uint8_t* ciphertext, uint32_t len, sgx_ec256_public_t* pub, uint8_t* plaintext) {
-	char str[] = "Called decrypt()";
-	int retval;
-	ocall_prints(&retval, str);
-
-	// this part is just for testing
-	char test_str[] = "timisadork";
-	memcpy(plaintext, test_str, sizeof(test_str));
-	return SGX_SUCCESS;
-}
-
-// plaintext, len, and pub are inputs, signature is output
-sgx_status_t sign(const uint8_t* plaintext, uint32_t len, sgx_ec256_public_t* pub, sgx_ec256_signature_t* signature) {
-	char str[] = "Called sign()";
-	int retval;
-	ocall_prints(&retval, str);
-
-	// this part is just for testing
-	signature->x[0] = 3;
-	return SGX_SUCCESS;
-}
-
-
 // helper function for generating TLS keys
 // inputs: buf_len -- number of bytes to be generated and put in buf
 //         key
@@ -651,20 +619,5 @@ sgx_status_t debug_number_ec256_key_pairs( int* num_keys ){
 	return SGX_SUCCESS;
 }
 
-// ciphertext, len, and pub are inputs, plaintext is output
-sgx_status_t debug_decrypt(const uint8_t* ciphertext, uint32_t len, sgx_ec256_public_t* pub, uint8_t* plaintext) {
-	char str[] = "Called debug_decrypt()";
-	int retval;
-	ocall_prints(&retval, str);
-	return decrypt(ciphertext, len, pub, plaintext); // calls private function
-}
-
-// plaintext, len, and pub are inputs, signature is output
-sgx_status_t debug_sign(const uint8_t* plaintext, uint32_t len, sgx_ec256_public_t* pub, sgx_ec256_signature_t* signature) {
-	char str[] = "Called debug_sign()";
-	int retval;
-	ocall_prints(&retval, str);
-	return sign(plaintext, len, pub, signature); // calls private function
-}
 
 

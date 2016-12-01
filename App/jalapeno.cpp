@@ -44,10 +44,10 @@ int SGX_CDECL main(int argc, char* argv[]) {
 	webserver_ops();
 
 	// Test #1
-	generate_3_keys_and_delete_2();
+	//generate_3_keys_and_delete_2();
 
 	// Test #2
-	generate_2_keys_flush_and_delete_2();
+	//generate_2_keys_flush_and_delete_2();
 
 	// #define SECRET_MESSAGE "thisisasecretmessage"
 	// const uint8_t ciphertext[] = SECRET_MESSAGE;
@@ -263,10 +263,11 @@ void webserver_ops() {
 	uint8_t plaintext[32];
 	uint32_t plaintext_len = sizeof(plaintext);
 	uint8_t ciphertext[32];
-	uint32_t ciphertext_len = sizeof(ciphertext);
+	uint8_t new_plaintext[32];
 
 #define SERVER_MESSAGE "ServerSecretMessage"
 #define SERVER_MESSAGE_LEN sizeof(SERVER_MESSAGE)
+	memset(plaintext, 0, 32);
 	memcpy(plaintext, SERVER_MESSAGE, SERVER_MESSAGE_LEN);
 
 	printf("Performing webserver operations.\n");
@@ -298,7 +299,7 @@ void webserver_ops() {
 	// since we're not storing the session keys in the enclave (we're going to recompute it each time), we don't have to initialize anything
 
 	// ask the server to encrypt a message for the client
-	printf("Asking the server to encrypt the message, %s.\n", plaintext);
+	printf("Asking the server to encrypt the message, '%s'.\n", plaintext);
 	// note: we need the following to compute the pre-master secret, master secret, and session keys:
 	// server pub key (to look up server priv key)
 	// client pub key
@@ -309,7 +310,24 @@ void webserver_ops() {
 	// ==> this can generate the master secret
 	// https://tools.ietf.org/html/rfc5246
 	// ==> this can generate the session keys
-	status = encrypt_aes_gcm(global_eid, &retval, &mac, ciphertext, ciphertext_len, plaintext, plaintext_len, &s_pub, &c_pub, server_random, s_len, client_random, c_len);
+	status = encrypt_aes_gcm(global_eid, &retval, &mac, ciphertext, plaintext, plaintext_len, &s_pub, &c_pub, server_random, s_len, client_random, c_len, 0);
+	printf("Status of encryption: %d\n", status);
+	printf("Ciphertext:");
+	for (int i=0; i<plaintext_len; i++) {
+		printf(" 0x%x", ciphertext[i]);
+	}
+	printf("\n");
+
+	// now, ask the client to decrypt the message
+	printf("Asking the client to decrypt the message\n");
+	// just like before with the encrypt function, but now we're the client
+	status = decrypt_aes_gcm(global_eid, &retval, &mac, ciphertext, new_plaintext, plaintext_len, &s_pub, &c_pub, server_random, s_len, client_random, c_len, 1);
+	printf("Status of decryption: %d\n", status);
+	printf("Plaintext: '%s'\n", new_plaintext);
+	for (int i=0; i<plaintext_len; i++) {
+		printf(" 0x%x", new_plaintext[i]);
+	}
+	printf("\n");
 
 }
 

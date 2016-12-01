@@ -45,20 +45,21 @@ enclave {
 
 
 		// input:
-		// 	ciphertext_len      maximum length of ciphertext buffer (should be multiple of 16 bytes (128 bits) greater than plaintext length)
-		//                      if the ciphertext is larger than this buffer, this function will return an error
 		//	plaintext	          pointer to buffer of plaintext bytes
 		//	plaintext_len       length of plaintext buffer
-		//	local_pubkey        pointer to the local public key (for looking up its corresponding private key)
-		//	remote_pubkey       pointer to the remote public key
+		//	server_pubkey       pointer to the server's public key (for looking up its corresponding private key)
+		//	client_pubkey       pointer to the client's public key
 		//	server_random       28 random bytes from the server
 		//	server_random_len   should be 28
 		//	client_random       28 random bytes from the client
 		//	client_random_len   should be 28
+		//  is_client           if false, this enclave is on the server | if true, this enclave is on the client -- important so we know which keys to use, the client's or the server's
 		// output:
 		//	tag	                MAC for the generated ciphertext
-		// 	ciphertext          buffer for putting the resulting ciphertext bytes
-		public sgx_status_t encrypt_aes_gcm([out,size=16,count=1] sgx_aes_gcm_128bit_tag_t* tag, [out,count=ciphertext_len] uint8_t* ciphertext, uint32_t ciphertext_len, [in,count=plaintext_len] uint8_t* plaintext, uint32_t plaintext_len, [in] sgx_ec256_public_t* local_pubkey, [in] sgx_ec256_public_t* remote_pubkey, [in,count=server_random_len] uint8_t* server_random, uint32_t server_random_len, [in,count=client_random_len] uint8_t* client_random, uint32_t client_random_len);
+		// 	ciphertext          buffer for putting the resulting ciphertext bytes. Must be >= plaintext_len
+		public sgx_status_t encrypt_aes_gcm([out,size=16,count=1] sgx_aes_gcm_128bit_tag_t* tag, [out,count=plaintext_len] uint8_t* ciphertext, [in,count=plaintext_len] uint8_t* plaintext, uint32_t plaintext_len, [in] sgx_ec256_public_t* server_pubkey, [in] sgx_ec256_public_t* client_pubkey, [in,count=server_random_len] uint8_t* server_random, uint32_t server_random_len, [in,count=client_random_len] uint8_t* client_random, uint32_t client_random_len, uint8_t is_client);
+		// decrypt is just the opposite for in/out -- ciphertext and tag go in, plaintext comes out
+		public sgx_status_t decrypt_aes_gcm([in,size=16,count=1] sgx_aes_gcm_128bit_tag_t* tag, [in,count=plaintext_len] uint8_t* ciphertext, [out,count=plaintext_len] uint8_t* plaintext, uint32_t plaintext_len, [in] sgx_ec256_public_t* server_pubkey, [in] sgx_ec256_public_t* client_pubkey, [in,count=server_random_len] uint8_t* server_random, uint32_t server_random_len, [in,count=client_random_len] uint8_t* client_random, uint32_t client_random_len, uint8_t is_client);
 
 	};
 

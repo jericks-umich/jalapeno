@@ -161,16 +161,229 @@ sgx_status_t flush_ec256_key_pair_cache(){
 	return SGX_SUCCESS;
 }
 
+// for description, see Enclave.edl
 sgx_status_t encrypt_aes_gcm(sgx_aes_gcm_128bit_tag_t* tag, 
-		uint8_t* ciphertext, uint32_t ciphertext_len, uint8_t* plaintext, uint32_t plaintext_len, 
-		sgx_ec256_public_t* local_pubkey, sgx_ec256_public_t* remote_pubkey, 
-		uint8_t* server_random, uint32_t server_random_len, uint8_t* client_random, uint32_t client_random_len) {
+		uint8_t* ciphertext, uint8_t* plaintext, uint32_t plaintext_len, 
+		sgx_ec256_public_t* server_pubkey, sgx_ec256_public_t* client_pubkey, 
+		uint8_t* server_random, uint32_t server_random_len, uint8_t* client_random, uint32_t client_random_len,
+		uint8_t is_client) {
+
+	sgx_status_t status;
+	int retval;
+	
+	// retrieve local privkey associated with this pubkey
+	sgx_ec256_private_t local_privkey;
+	if (is_client == 1) {
+		status = get_privkey(&local_privkey, client_pubkey);
+	} else {
+		status = get_privkey(&local_privkey, server_pubkey);
+	}
+	if (status != SGX_SUCCESS) {
+		char msg1[] = "ERROR: Could not retrieve private key associated with local pubkey.";
+		ocall_prints(&retval, msg1);
+		return status;
+	}
+
+	// generate pre-master secret from the local privkey and remote pubkey
+	sgx_ec256_dh_shared_t premaster_secret;
+	sgx_ecc_state_handle_t 	ecc_handle;
+	status = sgx_ecc256_open_context(&ecc_handle);
+	if ( status != SGX_SUCCESS ){
+		return status;
+	}
+	if (is_client == 1) {
+		status = sgx_ecc256_compute_shared_dhkey(&local_privkey, server_pubkey, &premaster_secret, ecc_handle);
+	} else {
+		status = sgx_ecc256_compute_shared_dhkey(&local_privkey, client_pubkey, &premaster_secret, ecc_handle);
+	}
+	if ( status != SGX_SUCCESS ){
+		return status;
+	}
+	status = sgx_ecc256_close_context(ecc_handle);
+	if ( status != SGX_SUCCESS ){
+		return status;
+	}
+
+	// generate master secret from pre-master secret and server/client random bytes
+	uint8_t master_secret[MASTER_SECRET_SIZE];
+#define MASTER_SECRET_STR "master secret"
+	uint32_t seed_len = sizeof(MASTER_SECRET_STR) + server_random_len + client_random_len;
+	uint8_t seed[seed_len];
+	memcpy(seed, MASTER_SECRET_STR, sizeof(MASTER_SECRET_STR));
+	memcpy(seed+sizeof(MASTER_SECRET_STR), client_random, client_random_len);
+	memcpy(seed+sizeof(MASTER_SECRET_STR)+client_random_len, server_random, server_random_len);
+	prf_sha256(master_secret, MASTER_SECRET_SIZE, premaster_secret.s, sizeof(premaster_secret), seed, seed_len);
+
+	// generate client/server keys from master secret
+	uint32_t secret_data_size = (2*SGX_SHA256_HASH_SIZE) + (2*SGX_AESGCM_KEY_SIZE) + (2*SGX_AESGCM_IV_SIZE);
+	uint8_t secret_data[secret_data_size];
+#define SECRET_KEYS_STR "key expansion"
+	uint32_t key_str_len = sizeof(SECRET_KEYS_STR) + server_random_len + client_random_len;
+	uint8_t key_str[key_str_len];
+	memcpy(key_str, SECRET_KEYS_STR, sizeof(SECRET_KEYS_STR));
+	memcpy(key_str+sizeof(SECRET_KEYS_STR), server_random, server_random_len);
+	memcpy(key_str+sizeof(SECRET_KEYS_STR)+server_random_len, client_random, client_random_len);
+	prf_sha256(secret_data, secret_data_size, master_secret, MASTER_SECRET_SIZE, key_str, key_str_len);
+	// grab client/server MAC secret
+	uint8_t* client_mac = secret_data;
+	uint8_t* server_mac = secret_data + SGX_SHA256_HASH_SIZE;
+	// grab client/server write key
+	uint8_t* client_write_key = secret_data + (2*SGX_SHA256_HASH_SIZE);
+	uint8_t* server_write_key = secret_data + (2*SGX_SHA256_HASH_SIZE) + SGX_AESGCM_KEY_SIZE;
+	// grab client/server IV
+	uint8_t* client_iv = secret_data + (2*SGX_SHA256_HASH_SIZE) + (2*SGX_AESGCM_KEY_SIZE);
+	uint8_t* server_iv = secret_data + (2*SGX_SHA256_HASH_SIZE) + (2*SGX_AESGCM_KEY_SIZE) + SGX_AESGCM_IV_SIZE;
+
+	// encrypt plaintext with appropriate key and store in ciphertext
+	uint8_t* encrypt_key;
+	uint8_t* encrypt_iv;
+	if (is_client == 1) {
+		encrypt_key = client_write_key;
+		encrypt_iv = client_iv;
+	} else {
+		encrypt_key = server_write_key;
+		encrypt_iv = server_iv;
+	}
+	status = sgx_rijndael128GCM_encrypt((sgx_aes_gcm_128bit_key_t*) encrypt_key,
+			plaintext, plaintext_len, ciphertext, encrypt_iv, SGX_AESGCM_IV_SIZE, NULL, 0, tag);
+	if ( status != SGX_SUCCESS ){
+		char msg2[] = "ERROR: could not turn plaintext into ciphertext.";
+		ocall_prints(&retval, msg2);
+		return status;
+	}
+
+	return SGX_SUCCESS;
+}
+
+sgx_status_t decrypt_aes_gcm(sgx_aes_gcm_128bit_tag_t* tag, 
+		uint8_t* ciphertext, uint8_t* plaintext, uint32_t plaintext_len, 
+		sgx_ec256_public_t* server_pubkey, sgx_ec256_public_t* client_pubkey, 
+		uint8_t* server_random, uint32_t server_random_len, uint8_t* client_random, uint32_t client_random_len,
+		uint8_t is_client) {
+
+	sgx_status_t status;
+	int retval;
+	
+	// retrieve local privkey associated with this pubkey
+	sgx_ec256_private_t local_privkey;
+	if (is_client == 1) {
+		status = get_privkey(&local_privkey, client_pubkey);
+	} else {
+		status = get_privkey(&local_privkey, server_pubkey);
+	}
+	if (status != SGX_SUCCESS) {
+		char msg1[] = "ERROR: Could not retrieve private key associated with local pubkey.";
+		ocall_prints(&retval, msg1);
+		return status;
+	}
+
+	// generate pre-master secret from the local privkey and remote pubkey
+	sgx_ec256_dh_shared_t premaster_secret;
+	sgx_ecc_state_handle_t 	ecc_handle;
+	status = sgx_ecc256_open_context(&ecc_handle);
+	if ( status != SGX_SUCCESS ){
+		return status;
+	}
+	if (is_client == 1) {
+		status = sgx_ecc256_compute_shared_dhkey(&local_privkey, server_pubkey, &premaster_secret, ecc_handle);
+	} else {
+		status = sgx_ecc256_compute_shared_dhkey(&local_privkey, client_pubkey, &premaster_secret, ecc_handle);
+	}
+	if ( status != SGX_SUCCESS ){
+		return status;
+	}
+	status = sgx_ecc256_close_context(ecc_handle);
+	if ( status != SGX_SUCCESS ){
+		return status;
+	}
+
+	// generate master secret from pre-master secret and server/client random bytes
+	uint8_t master_secret[MASTER_SECRET_SIZE];
+#define MASTER_SECRET_STR "master secret"
+	uint32_t seed_len = sizeof(MASTER_SECRET_STR) + server_random_len + client_random_len;
+	uint8_t seed[seed_len];
+	memcpy(seed, MASTER_SECRET_STR, sizeof(MASTER_SECRET_STR));
+	memcpy(seed+sizeof(MASTER_SECRET_STR), client_random, client_random_len);
+	memcpy(seed+sizeof(MASTER_SECRET_STR)+client_random_len, server_random, server_random_len);
+	prf_sha256(master_secret, MASTER_SECRET_SIZE, premaster_secret.s, sizeof(premaster_secret), seed, seed_len);
+
+	// generate client/server keys from master secret
+	uint32_t secret_data_size = (2*SGX_SHA256_HASH_SIZE) + (2*SGX_AESGCM_KEY_SIZE) + (2*SGX_AESGCM_IV_SIZE);
+	uint8_t secret_data[secret_data_size];
+#define SECRET_KEYS_STR "key expansion"
+	uint32_t key_str_len = sizeof(SECRET_KEYS_STR) + server_random_len + client_random_len;
+	uint8_t key_str[key_str_len];
+	memcpy(key_str, SECRET_KEYS_STR, sizeof(SECRET_KEYS_STR));
+	memcpy(key_str+sizeof(SECRET_KEYS_STR), server_random, server_random_len);
+	memcpy(key_str+sizeof(SECRET_KEYS_STR)+server_random_len, client_random, client_random_len);
+	prf_sha256(secret_data, secret_data_size, master_secret, MASTER_SECRET_SIZE, key_str, key_str_len);
+	// grab client/server MAC secret
+	uint8_t* client_mac = secret_data;
+	uint8_t* server_mac = secret_data + SGX_SHA256_HASH_SIZE;
+	// grab client/server write key
+	uint8_t* client_write_key = secret_data + (2*SGX_SHA256_HASH_SIZE);
+	uint8_t* server_write_key = secret_data + (2*SGX_SHA256_HASH_SIZE) + SGX_AESGCM_KEY_SIZE;
+	// grab client/server IV
+	uint8_t* client_iv = secret_data + (2*SGX_SHA256_HASH_SIZE) + (2*SGX_AESGCM_KEY_SIZE);
+	uint8_t* server_iv = secret_data + (2*SGX_SHA256_HASH_SIZE) + (2*SGX_AESGCM_KEY_SIZE) + SGX_AESGCM_IV_SIZE;
+
+	// decrypt ciphertext with appropriate key and store in plaintext
+	uint8_t* decrypt_key;
+	uint8_t* decrypt_iv;
+	if (is_client == 1) {
+		decrypt_key = server_write_key;
+		decrypt_iv = server_iv;
+	} else {
+		decrypt_key = client_write_key;
+		decrypt_iv = client_iv;
+	}
+	status = sgx_rijndael128GCM_decrypt((sgx_aes_gcm_128bit_key_t*) decrypt_key,
+			ciphertext, plaintext_len, plaintext, decrypt_iv, SGX_AESGCM_IV_SIZE, NULL, 0, tag);
+	if ( status != SGX_SUCCESS ){
+		char msg2[] = "ERROR: could not turn ciphertext into plaintext.";
+		ocall_prints(&retval, msg2);
+		return status;
+	}
+
 	return SGX_SUCCESS;
 }
 
 /////////////
 // PRIVATE //
 /////////////
+
+// look up private key associated with given public key
+sgx_status_t get_privkey(sgx_ec256_private_t* privkey, sgx_ec256_public_t* pubkey) {
+	sgx_status_t status;
+	int retval;
+	uint8_t found_it = 0;
+	// check to make sure the keys are loaded into memory
+	//  if not, try to load them from disk
+	//   if that fails, return error
+	if (ec256_key_handles == NULL) {
+		status = load_ec256_keys();
+		if (status != SGX_SUCCESS) {
+			return status;
+		}
+	}
+
+	// iterate over all keypairs (DON'T RETURN EARLY) and store a copy of the correct privkey into the return variable
+	for (int i=0; i<NUMBER_OF_EC256_KEY_PAIRS; i++) {
+		if ((0 == memcmp(pubkey, &ec256_key_handles[i].key_pair.pub, sizeof(sgx_ec256_public_t))) &&
+				(ec256_key_handles[i].in_use == true)) {
+			found_it = 1;
+			memcpy(privkey, &ec256_key_handles[i].key_pair.priv, sizeof(sgx_ec256_private_t));
+			// don't break/return early!
+		}
+	}
+
+	if (found_it == 0) {
+		char msg[] = "ERROR: could not find privkey associated with pubkey.";
+		ocall_prints(&retval, msg);
+		return SGX_ERROR_INVALID_STATE;
+	}
+	return SGX_SUCCESS;
+}
 
 sgx_status_t load_ec256_keys(){
 	int 					retval 	 = 0; 	 		// debug print return value
@@ -330,13 +543,46 @@ sgx_status_t sign(const uint8_t* plaintext, uint32_t len, sgx_ec256_public_t* pu
 }
 
 
+// helper function for generating TLS keys
+// inputs: buf_len -- number of bytes to be generated and put in buf
+//         key
+//         key_len
+//         seed
+//         seed_len
+// outputs: buf
+void prf_sha256(uint8_t* buf, uint32_t buf_len, uint8_t* key, uint32_t key_len, uint8_t* seed, uint32_t seed_len) {
+	int retval;
+	uint8_t iter_msg[SHA256_BLOCKSIZE+seed_len];
+	uint8_t a[SHA256_BLOCKSIZE];
+	uint8_t buf_chunk[SHA256_BLOCKSIZE];
+	hmac_sha256((sgx_sha256_hash_t*)a, key, key_len, seed, seed_len); // get a(1)
+	for (int i=0; i<(buf_len/SHA256_BLOCKSIZE + 1); i++) {
+		// create the msg to hash this iteration
+		memcpy(iter_msg, a, SHA256_BLOCKSIZE);
+		memcpy(iter_msg+SHA256_BLOCKSIZE, seed, seed_len);
+		hmac_sha256(&buf_chunk, key, key_len, iter_msg, SHA256_BLOCKSIZE+seed_len);
+		// copy some part of it (likely all of it) into buf
+		if (buf_len >= (i+1)*SHA256_BLOCKSIZE) {
+			memcpy(buf+(i*SHA256_BLOCKSIZE),buf_chunk, SHA256_BLOCKSIZE);
+		} else {
+			memcpy(buf+(i*SHA256_BLOCKSIZE),buf_chunk, buf_len%SHA256_BLOCKSIZE);
+			return; // EXIT since we copied the last bit, so we're done
+		}
+		hmac_sha256((sgx_sha256_hash_t*)a, key, key_len, a, SHA256_BLOCKSIZE); // get a(n) for next iteration
+	}
+	char msg[] = "ERROR: should not have gotten here in prf_sha256().";
+	ocall_prints(&retval, msg );
+	return;
+}
+
 // helper functionn for PRF
 // inputs: key
 //         key_len
 //         msg
 //         msg_len
 // outputs: hash
-#define SHA256_BLOCKSIZE 32
+// Approximately follows pseudo-code given on wikipedia for hmac
+// See https://en.wikipedia.org/wiki/Hash-based_message_authentication_code
 void hmac_sha256(sgx_sha256_hash_t* hash, uint8_t* key, uint32_t key_len, uint8_t* msg, uint32_t msg_len) {
 	// set up opad and ipad constants
 	//uint8_t opad[SHA256_BLOCKSIZE] = {0x5c, 0x5c, 0x5c, 0x5c, 0x5c, 0x5c, 0x5c, 0x5c, 0x5c, 0x5c, 0x5c, 0x5c, 0x5c, 0x5c, 0x5c, 0x5c, 0x5c, 0x5c, 0x5c, 0x5c, 0x5c, 0x5c, 0x5c, 0x5c, 0x5c, 0x5c, 0x5c, 0x5c, 0x5c, 0x5c, 0x5c, 0x5c};
@@ -349,7 +595,6 @@ void hmac_sha256(sgx_sha256_hash_t* hash, uint8_t* key, uint32_t key_len, uint8_
 		memset(key_k, 0, SHA256_BLOCKSIZE);
 		memcpy(key_k, key, key_len);
 	}
-
 	uint8_t inner_hash[SHA256_BLOCKSIZE];
 	uint8_t outer_msg[SHA256_BLOCKSIZE*2];
 	// build inner_msg for hashing

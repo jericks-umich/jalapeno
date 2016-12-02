@@ -4,6 +4,7 @@
 #include "sgx_eid.h"
 
 #define ENCLAVE_FILENAME "enclave.signed.so"
+#define STORE_FILENAME 	 "/tmp/sgx_ec256_key_store.dump"
 
 extern sgx_enclave_id_t global_eid;
 

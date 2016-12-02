@@ -13,11 +13,6 @@
 
 #include "Enclave_u.h"
 
-#define MAX_PATH FILENAME_MAX
-
-// TODO: remove this when it is no longer needed
-#define STORE_FILENAME "/tmp/sgx_ec256_key_store.dump"
-
 //#define SGX_DEBUG_FLAG 1 // debug mode enabled
 
 // Global enclave id
@@ -41,13 +36,13 @@ int SGX_CDECL main(int argc, char* argv[]) {
 	printf("Return status from create: %d\n", ret);
 
 	// Test #3
-	// webserver_ops();
+	webserver_ops();
 
 	// Test #1
 	// generate_3_keys_and_delete_2();
 
 	// Test #2
-	generate_2_keys_and_delete_1();
+	// generate_2_keys_and_delete_1();
 
 	return 0;
 }
@@ -68,7 +63,7 @@ jalapeno_status_t ocall_store_sealed_keys( const uint8_t* sealed_data, uint32_t 
 	}
 	fwrite( sealed_data, sizeof(uint8_t), len, fp );
 	fclose( fp );
-	return J_OK;
+	return J_SUCCESS;
 }
 
 jalapeno_status_t ocall_load_sealed_keys( uint8_t* sealed_data, uint32_t len ) {
@@ -79,12 +74,12 @@ jalapeno_status_t ocall_load_sealed_keys( uint8_t* sealed_data, uint32_t len ) {
 	}
 	fread( sealed_data, sizeof(uint8_t), len, fp );
 	fclose( fp );
-	return J_OK;
+	return J_SUCCESS;
 }
 
 jalapeno_status_t ocall_delete_sealed_keys_file() {
 	remove( STORE_FILENAME );
-	return J_OK;
+	return J_SUCCESS;
 }
 
 /////////////

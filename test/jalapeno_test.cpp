@@ -3,108 +3,37 @@
 #include <unistd.h>
 #include <pwd.h>
 
-#include "sgx_urts.h"
 #include "sgx_eid.h"
 #include "sgx_tcrypto.h"
-#include "sgx_error.h"
+#include <jalapeno.h>
 
-#include "jalapeno.h"
-#include "../include/status.h"
-
-#include "Enclave_u.h"
-
-//#define SGX_DEBUG_FLAG 1 // debug mode enabled
-
-// Global enclave id
-sgx_enclave_id_t global_eid = 0;
+#include "jalapeno_test.h"
 
 // CDECL tells the compiler that the caller will do arg cleanup
 int SGX_CDECL main(int argc, char* argv[]) {
-	int ret;
-	int updated; // flag for whether the launch token is updated or not (it should be, since we don't pass it a valid one)
-	sgx_launch_token_t token = {0};
+	sgx_enclave_id_t 	enclave_id = 0; 
+	jalapeno_status_t 	j_status   = J_SUCCESS;
 
-	// create new enclave
-	// https://software.intel.com/sites/products/sgx-sdk-users-guide-windows/Content/sgx_create_enclave.htm
-	ret = sgx_create_enclave(ENCLAVE_FILENAME,
-	                    	SGX_DEBUG_FLAG,
-	                    	&token,
-	                    	&updated,
-	                    	&global_eid,
-	                    	NULL);
-
-	printf("Return status from create: %d\n", ret);
-
-	// Test #3
-	webserver_ops();
-
+	// Init Crypto SGX Enclave
+	j_status = init_crypto_enclave( &enclave_id );
+	
 	// Test #1
-	// generate_3_keys_and_delete_2();
+	generate_3_keys_and_delete_2( enclave_id );
+	printf("---------------------------------------------------------\n");
 
 	// Test #2
-	// generate_2_keys_and_delete_1();
+	generate_2_keys_and_delete_1( enclave_id );
+	printf("---------------------------------------------------------\n");
+
+	// Test #3
+	webserver_ops( enclave_id );
+	printf("---------------------------------------------------------\n");
 
 	return 0;
 }
 
-////////////
-// OCALLS //
-////////////
-
-int ocall_prints( const char* str ) {
-  printf("The enclave prints: \"%s\"\n", str);
-}
-
-jalapeno_status_t ocall_store_sealed_keys( const uint8_t* sealed_data, uint32_t len ) {
-	FILE* fp;
-	fp = fopen( STORE_FILENAME, "wb" );
-	if (fp == NULL) {
-		return J_CANT_OPEN_FILE;
-	}
-	fwrite( sealed_data, sizeof(uint8_t), len, fp );
-	fclose( fp );
-	return J_SUCCESS;
-}
-
-jalapeno_status_t ocall_load_sealed_keys( uint8_t* sealed_data, uint32_t len ) {
-	FILE* fp;
-	fp = fopen( STORE_FILENAME, "rb" );
-	if (fp == NULL) {
-		return J_CANT_OPEN_FILE;
-	}
-	fread( sealed_data, sizeof(uint8_t), len, fp );
-	fclose( fp );
-	return J_SUCCESS;
-}
-
-jalapeno_status_t ocall_delete_sealed_keys_file() {
-	remove( STORE_FILENAME );
-	return J_SUCCESS;
-}
-
-/////////////
-// TESTING //
-/////////////
-
-void print_ec256_pub_key( sgx_ec256_public_t *pub ){
-	printf("Public gx: ");
-	for(int i = 0; i < SGX_ECP256_KEY_SIZE; i++)
-	{
-		printf("%02X",pub->gx[i]);
-	}
-	printf("\n");
-	printf("Public gy: ");
-	for(int i = 0; i < SGX_ECP256_KEY_SIZE; i++)
-	{
-		printf("%02X",pub->gy[i]);
-	}
-	printf("\n");
-}
-
-void generate_3_keys_and_delete_2(){
-	sgx_status_t 		status   = SGX_SUCCESS;
-	sgx_status_t 		retval_1 = SGX_SUCCESS;
-	sgx_status_t 		retval_2 = SGX_SUCCESS;
+void generate_3_keys_and_delete_2( sgx_enclave_id_t enclave_id ){
+	jalapeno_status_t 	status   = J_SUCCESS;
 	sgx_ec256_public_t 	pub_1;
 	sgx_ec256_public_t 	pub_2;
 	sgx_ec256_public_t 	pub_3;
@@ -112,87 +41,85 @@ void generate_3_keys_and_delete_2(){
 
 	// 1. Generate EC256 Public-Private Key Pair 1
 	printf( "Generating EC256 key pair 1...\n" );
-	status = generate_ec256_key_pair( global_eid, &retval_1, &pub_1 );
+	status = generate_ec256_key_pair( enclave_id, &pub_1 );
 	print_ec256_pub_key( &pub_1 );
-	status = debug_number_ec256_key_pairs( global_eid, &retval_2, &num_keys );
+	debug_number_ec256_key_pairs( enclave_id, &num_keys );
 	printf( "Number of EC256 key pairs: %d\n", num_keys );
-	printf( "Return status from generate_ec256_key_pair(): %d\n\n", retval_1 );
+	printf( "Return status from generate_ec256_key_pair(): %d\n\n", status );
 
 	// 2. Generate EC256 Public-Private Key Pair 2
 	printf( "Generating EC256 key pair 2...\n" );
-	status = generate_ec256_key_pair( global_eid, &retval_1, &pub_2 );
+	status = generate_ec256_key_pair( enclave_id, &pub_2 );
 	print_ec256_pub_key( &pub_2 );
-	status = debug_number_ec256_key_pairs( global_eid, &retval_2, &num_keys );
+	debug_number_ec256_key_pairs( enclave_id, &num_keys );
 	printf( "Number of EC256 key pairs: %d\n", num_keys );
-	printf( "Return status from generate_ec256_key_pair(): %d\n\n", retval_1 );
+	printf( "Return status from generate_ec256_key_pair(): %d\n\n", status );
 
 	// 3. Generate EC256 Public-Private Key Pair 3
 	printf( "Generating EC256 key pair 3...\n" );
-	status = generate_ec256_key_pair( global_eid, &retval_1, &pub_3 );
+	status = generate_ec256_key_pair( enclave_id, &pub_3 );
 	print_ec256_pub_key( &pub_3 );
-	status = debug_number_ec256_key_pairs( global_eid, &retval_2, &num_keys );
+	debug_number_ec256_key_pairs( enclave_id, &num_keys );
 	printf( "Number of EC256 key pairs: %d\n", num_keys );
-	printf( "Return status from generate_ec256_key_pair(): %d\n\n", retval_1 );
+	printf( "Return status from generate_ec256_key_pair(): %d\n\n", status );
 
 	// 4. Delete key pair 2
 	printf( "Deleting  EC256 key pair 2...\n" );
-	status = delete_ec256_key_pair( global_eid, &retval_1, &pub_2 );
-	status = debug_number_ec256_key_pairs( global_eid, &retval_2, &num_keys );
+	status = delete_ec256_key_pair( enclave_id, &pub_2 );
+	debug_number_ec256_key_pairs( enclave_id, &num_keys );
 	printf( "Number of EC256 key pairs: %d\n", num_keys );
-	printf( "Return status from delete_ec256_key_pair(): %d\n\n", retval_1 );
+	printf( "Return status from delete_ec256_key_pair(): %d\n\n", status );
 
 	// 5. Delete key pair 3
 	printf( "Deleting  EC256 key pair 3...\n" );
-	status = delete_ec256_key_pair( global_eid, &retval_1, &pub_3 );
-	status = debug_number_ec256_key_pairs( global_eid, &retval_2, &num_keys );
+	status = delete_ec256_key_pair( enclave_id, &pub_3 );
+	debug_number_ec256_key_pairs( enclave_id, &num_keys );
 	printf( "Number of EC256 key pairs: %d\n", num_keys );
-	printf( "Return status from delete_ec256_key_pair(): %d\n\n", retval_1 );
+	printf( "Return status from delete_ec256_key_pair(): %d\n\n", status );
 
 	// 6. Delete key store
 	printf( "Deleting EC256 key pair store...\n" );
-	status = delete_all_ec256_key_pairs( global_eid, &retval_1 );
-	status = debug_number_ec256_key_pairs( global_eid, &retval_2, &num_keys );
+	status = delete_all_ec256_key_pairs( enclave_id );
+	debug_number_ec256_key_pairs( enclave_id, &num_keys );
 	printf( "Number of EC256 key pairs: %d\n", num_keys );
-	printf( "Return status from delete_all_ec256_key_pairs(): %d\n\n", retval_1 );
+	printf( "Return status from delete_all_ec256_key_pairs(): %d\n\n", status );
 }
 
-void generate_2_keys_and_delete_1(){
-	sgx_status_t 		status   = SGX_SUCCESS;
-	sgx_status_t 		retval_1 = SGX_SUCCESS;
-	sgx_status_t 		retval_2 = SGX_SUCCESS;
+void generate_2_keys_and_delete_1( sgx_enclave_id_t enclave_id ){
+	jalapeno_status_t 	status   = J_SUCCESS;
 	sgx_ec256_public_t 	pub_1;
 	sgx_ec256_public_t 	pub_2;
 	int 				num_keys = 0;
 
 	// 1. Generate EC256 Public-Private Key Pair 1
 	printf( "Generating EC256 key pair 1...\n" );
-	status = generate_ec256_key_pair( global_eid, &retval_1, &pub_1 );
+	status = generate_ec256_key_pair( enclave_id, &pub_1 );
 	print_ec256_pub_key( &pub_1 );
-	status = debug_number_ec256_key_pairs( global_eid, &retval_2, &num_keys );
+	debug_number_ec256_key_pairs( enclave_id, &num_keys );
 	printf( "Number of EC256 key pairs: %d\n", num_keys );
-	printf( "Return status from generate_ec256_key_pair(): %d\n\n", retval_1 );
+	printf( "Return status from generate_ec256_key_pair(): %d\n\n", status );
 
 	// 2. Generate EC256 Public-Private Key Pair 2
 	printf( "Generating EC256 key pair 2...\n" );
-	status = generate_ec256_key_pair( global_eid, &retval_1, &pub_2 );
+	status = generate_ec256_key_pair( enclave_id, &pub_2 );
 	print_ec256_pub_key( &pub_2 );
-	status = debug_number_ec256_key_pairs( global_eid, &retval_2, &num_keys );
+	debug_number_ec256_key_pairs( enclave_id, &num_keys );
 	printf( "Number of EC256 key pairs: %d\n", num_keys );
-	printf( "Return status from generate_ec256_key_pair(): %d\n\n", retval_1 );
+	printf( "Return status from generate_ec256_key_pair(): %d\n\n", status );
 
 	// 3. Delete key pair 1
 	printf( "Deleting  EC256 key pair 1...\n" );
-	status = delete_ec256_key_pair( global_eid, &retval_1, &pub_1 );
-	status = debug_number_ec256_key_pairs( global_eid, &retval_2, &num_keys );
+	status = delete_ec256_key_pair( enclave_id, &pub_1 );
+	debug_number_ec256_key_pairs( enclave_id, &num_keys );
 	printf( "Number of EC256 key pairs: %d\n", num_keys );
-	printf( "Return status from delete_ec256_key_pair(): %d\n\n", retval_1 );
+	printf( "Return status from delete_ec256_key_pair(): %d\n\n", status );
 
 	// 4. Delete key store cache
 	printf( "Deleting EC256 key pair store...\n" );
-	status = delete_all_ec256_key_pairs( global_eid, &retval_1 );
-	status = debug_number_ec256_key_pairs( global_eid, &retval_2, &num_keys );
+	status = delete_all_ec256_key_pairs( enclave_id );
+	debug_number_ec256_key_pairs( enclave_id, &num_keys );
 	printf( "Number of EC256 key pairs: %d\n", num_keys );
-	printf( "Return status from delete_all_ec256_key_pairs(): %d\n\n", retval_1 );
+	printf( "Return status from delete_all_ec256_key_pairs(): %d\n\n", status );
 }
 
 
@@ -211,9 +138,9 @@ void generate_2_keys_and_delete_1(){
 // 4) The connection ends
 //	- We must throw away the ephemeral session key (ECDHE) so that PFS takes effect (ECDH is when we reuse the session key between sessions)
 
-void webserver_ops() {
-	sgx_status_t status;
-	sgx_status_t retval;
+void webserver_ops( sgx_enclave_id_t enclave_id ) {
+	jalapeno_status_t status;
+	// sgx_status_t retval;
 	sgx_ec256_public_t s_pub;
 	sgx_ec256_public_t c_pub;
 	uint8_t client_random[28] = {0}; // super random ;)
@@ -225,6 +152,7 @@ void webserver_ops() {
 	uint32_t plaintext_len = sizeof(plaintext);
 	uint8_t ciphertext[32];
 	uint8_t new_plaintext[32];
+	int 	num_keys = 0;
 
 #define SERVER_MESSAGE "ServerSecretMessage"
 #define SERVER_MESSAGE_LEN sizeof(SERVER_MESSAGE)
@@ -236,7 +164,7 @@ void webserver_ops() {
 	// 1) Admin will install and configure web server
 	//	- Will need to generate pub/priv keypair, use pubkey for certificate
 	printf("Generating server EC256 key pair...\n");
-	status = generate_ec256_key_pair(global_eid, &retval, &s_pub);
+	status = generate_ec256_key_pair(enclave_id, &s_pub);
 	printf("EC256 key pair generated. Use to set up CSR.\n");
 	print_ec256_pub_key(&s_pub);
 	// TODO: we'll need to actually output this in a form that can be used for a CSR
@@ -251,7 +179,7 @@ void webserver_ops() {
 
 	// We're going to simulate both the client and server here, so first generate a new keypair for the client
 	printf("Generating client EC256 key pair...\n");
-	status = generate_ec256_key_pair(global_eid, &retval, &c_pub);
+	status = generate_ec256_key_pair(enclave_id, &c_pub);
 
 	// simulate the server/client exchanging pubkeys
 	// ta-da that's done (since we have both in local [untrusted] memory)
@@ -271,7 +199,8 @@ void webserver_ops() {
 	// ==> this can generate the master secret
 	// https://tools.ietf.org/html/rfc5246
 	// ==> this can generate the session keys
-	status = encrypt_aes_gcm(global_eid, &retval, &mac, ciphertext, plaintext, plaintext_len, &s_pub, &c_pub, server_random, s_len, client_random, c_len, 0);
+
+	status = tls_encrypt_aes_gcm(enclave_id, &mac, ciphertext, plaintext, plaintext_len, &s_pub, &c_pub, server_random, s_len, client_random, c_len, 0);
 	printf("Status of encryption: %d\n", status);
 	printf("Ciphertext:");
 	for (int i=0; i<plaintext_len; i++) {
@@ -282,13 +211,18 @@ void webserver_ops() {
 	// now, ask the client to decrypt the message
 	printf("Asking the client to decrypt the message\n");
 	// just like before with the encrypt function, but now we're the client
-	status = decrypt_aes_gcm(global_eid, &retval, &mac, ciphertext, new_plaintext, plaintext_len, &s_pub, &c_pub, server_random, s_len, client_random, c_len, 1);
+	status = tls_decrypt_aes_gcm(enclave_id, &mac, ciphertext, new_plaintext, plaintext_len, &s_pub, &c_pub, server_random, s_len, client_random, c_len, 1);
 	printf("Status of decryption: %d\n", status);
 	printf("Plaintext: '%s'\n", new_plaintext);
 	for (int i=0; i<plaintext_len; i++) {
 		printf(" 0x%x", new_plaintext[i]);
 	}
-	printf("\n");
+	printf("\n\n");
 
+	// delete server and client ec256 key pairs
+	printf( "Deleting EC256 key pair store...\n" );
+	status = delete_all_ec256_key_pairs( enclave_id );
+	debug_number_ec256_key_pairs( enclave_id, &num_keys );
+	printf( "Number of EC256 key pairs: %d\n", num_keys );
+	printf( "Return status from delete_all_ec256_key_pairs(): %d\n\n", status );
 }
-

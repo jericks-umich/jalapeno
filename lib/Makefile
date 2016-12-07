@@ -151,8 +151,8 @@ App/%.o: App/%.cpp
 	@echo "CXX  <=  $<"
 
 $(Lib_Name): App/Enclave_u.o $(Jalapeno_Cpp_Objects)
-	#### @$(CXX) $^ -o lib$(Lib_Name).so.$(FULL_LIB_VERSION) -shared -Wl,-soname,lib$(Lib_Name).so.$(LIB_VERSION_MAJOR) $(Jalapeno_Link_Flags)
-	@$(CXX) $^ -o $@ $(Jalapeno_Link_Flags)
+	@$(CXX) $^ -o lib$(Lib_Name).so.$(FULL_LIB_VERSION) -shared -Wl,-soname,lib$(Lib_Name).so.$(LIB_VERSION_MAJOR) $(Jalapeno_Link_Flags)
+	# @$(CXX) $^ -o $@ $(Jalapeno_Link_Flags)
 	@echo "LINK =>  $@"    
 
 ######## Enclave Objects ########
@@ -181,7 +181,7 @@ $(Signed_Enclave_Name): $(Enclave_Name)
 
 clean:
 	@rm -f $(Lib_Name) $(Enclave_Name) $(Signed_Enclave_Name) $(Jalapeno_Cpp_Objects) App/Enclave_u.* $(Enclave_Cpp_Objects) Enclave/Enclave_t.*
-	#####@rm -f lib$(Lib_Name).so.$(FULL_LIB_VERSION)
+	@rm -f lib$(Lib_Name).so.$(FULL_LIB_VERSION)
 
 
 

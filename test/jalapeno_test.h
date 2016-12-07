@@ -1,6 +1,7 @@
 #ifndef JALAPENO_H
 #define JALAPENO_H
 
+#define ENCLAVE_FILENAME "/home/trippel/jalapeno/lib/enclave.signed.so"
 #define KEY_STORE_FILENAME 	 "/tmp/sgx_ec256_key_store.dump"
 
 // Test Functions

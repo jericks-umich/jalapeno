@@ -4,8 +4,7 @@ build.sh
 
 *.swp
 *.o
-*.so
-*.so.1.0
+*.so*
 *._*
 Enclave_u*
 Enclave_t*

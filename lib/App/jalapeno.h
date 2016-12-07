@@ -1,11 +1,13 @@
 #ifndef JALAPENO_TEST_H
 #define JALAPENO_TEST_H
 
-#define ENCLAVE_FILENAME "enclave.signed.so"
+#include "../include/status.h"
+
+//#define ENCLAVE_FILENAME "enclave.signed.so"
 #define STORE_FILENAME 	 "/tmp/sgx_ec256_key_store.dump"
 
 // API Exposed Functions
-jalapeno_status_t init_crypto_enclave( sgx_enclave_id_t* enclave_id );
+jalapeno_status_t init_crypto_enclave( sgx_enclave_id_t* enclave_id, const char* enclave_filename );
 jalapeno_status_t generate_ec256_key_pair( sgx_enclave_id_t enclave_id, sgx_ec256_public_t* pub_key );
 jalapeno_status_t delete_ec256_key_pair( sgx_enclave_id_t enclave_id, sgx_ec256_public_t* pub_key );
 jalapeno_status_t delete_all_ec256_key_pairs( sgx_enclave_id_t enclave_id );

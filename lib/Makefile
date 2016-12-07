@@ -4,6 +4,9 @@ LIB_NAME ?= jalapeno
 LIB_VERSION_MAJOR ?= 1
 LIB_VERSION_MINOR ?= 0
 FULL_LIB_VERSION := $(LIB_VERSION_MAJOR).$(LIB_VERSION_MINOR)
+MKFILE_PATH := $(abspath $(lastword $(MAKEFILE_LIST)))
+CURRENT_DIR := $(dir $(MKFILE_PATH))
+#CURRENT_DIR := $(notdir $(patsubst %/,%,$(dir $(MKFILE_PATH))))
 
 SGX_SDK ?= /opt/intel/sgxsdk
 #SGX_MODE ?= SIM
@@ -153,7 +156,9 @@ App/%.o: App/%.cpp
 $(Lib_Name): App/Enclave_u.o $(Jalapeno_Cpp_Objects)
 	@$(CXX) $^ -o lib$(Lib_Name).so.$(FULL_LIB_VERSION) -shared -Wl,-soname,lib$(Lib_Name).so.$(LIB_VERSION_MAJOR) $(Jalapeno_Link_Flags)
 	# @$(CXX) $^ -o $@ $(Jalapeno_Link_Flags)
-	@echo "LINK =>  $@"    
+	@(rm $(CURRENT_DIR)/lib$(Lib_Name).so.$(LIB_VERSION_MAJOR) 2>/dev/null || echo)
+	@ln -s $(CURRENT_DIR)/lib$(Lib_Name).so.$(FULL_LIB_VERSION) $(CURRENT_DIR)/lib$(Lib_Name).so.$(LIB_VERSION_MAJOR) 
+	@echo "LINK =>  $@"
 
 ######## Enclave Objects ########
 
@@ -181,8 +186,7 @@ $(Signed_Enclave_Name): $(Enclave_Name)
 
 clean:
 	@rm -f $(Lib_Name) $(Enclave_Name) $(Signed_Enclave_Name) $(Jalapeno_Cpp_Objects) App/Enclave_u.* $(Enclave_Cpp_Objects) Enclave/Enclave_t.*
-	@rm -f lib$(Lib_Name).so.$(FULL_LIB_VERSION)
-
+	@rm -f lib$(Lib_Name).so.$(FULL_LIB_VERSION) lib$(Lib_Name).so.$(LIB_VERSION_MAJOR)
 
 
 

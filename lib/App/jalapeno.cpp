@@ -17,7 +17,7 @@
 // API Exposed Functions //
 ///////////////////////////
 // Initialize instance of crypto enclave
-jalapeno_status_t init_crypto_enclave( sgx_enclave_id_t* enclave_id ) {
+jalapeno_status_t init_crypto_enclave( sgx_enclave_id_t* enclave_id, const char* enclave_filename ) {
 	int ret;
 	int updated; // flag for whether the launch token is updated or not (it should be, since we don't pass it a valid one)
 	sgx_launch_token_t token = {0};
@@ -25,7 +25,7 @@ jalapeno_status_t init_crypto_enclave( sgx_enclave_id_t* enclave_id ) {
 	// create new enclave
 	// https://software.intel.com/sites/products/sgx-sdk-users-guide-windows/Content/sgx_create_enclave.htm
 	ret = sgx_create_enclave(
-		ENCLAVE_FILENAME,
+		enclave_filename,
 		SGX_DEBUG_FLAG,
 		&token,
 		&updated,
@@ -221,6 +221,7 @@ jalapeno_status_t ocall_delete_sealed_keys_file() {
 // TESTING //
 /////////////
 // CDECL tells the compiler that the caller will do arg cleanup
+/*
 int SGX_CDECL main(int argc, char* argv[]) {
 	sgx_enclave_id_t 	enclave_id = 0; 
 	jalapeno_status_t 	j_status   = J_SUCCESS;
@@ -242,6 +243,7 @@ int SGX_CDECL main(int argc, char* argv[]) {
 
 	return 0;
 }
+
 
 void generate_3_keys_and_delete_2( sgx_enclave_id_t enclave_id ){
 	jalapeno_status_t 	status   = J_SUCCESS;
@@ -438,6 +440,6 @@ void webserver_ops( sgx_enclave_id_t enclave_id ) {
 	printf( "Return status from delete_all_ec256_key_pairs(): %d\n\n", status );
 }
 
-
+*/
 
 

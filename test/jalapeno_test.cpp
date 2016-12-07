@@ -5,6 +5,7 @@
 
 #include "sgx_eid.h"
 #include "sgx_tcrypto.h"
+#include "include/status.h"
 #include <jalapeno.h>
 
 #include "jalapeno_test.h"
@@ -15,7 +16,7 @@ int SGX_CDECL main(int argc, char* argv[]) {
 	jalapeno_status_t 	j_status   = J_SUCCESS;
 
 	// Init Crypto SGX Enclave
-	j_status = init_crypto_enclave( &enclave_id );
+	j_status = init_crypto_enclave( &enclave_id, ENCLAVE_FILENAME );
 	
 	// Test #1
 	generate_3_keys_and_delete_2( enclave_id );

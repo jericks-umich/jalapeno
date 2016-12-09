@@ -11,7 +11,7 @@ jalapeno_status_t init_crypto_enclave( sgx_enclave_id_t* enclave_id, const char*
 jalapeno_status_t generate_ec256_key_pair( sgx_enclave_id_t enclave_id, sgx_ec256_public_t* pub_key );
 jalapeno_status_t delete_ec256_key_pair( sgx_enclave_id_t enclave_id, sgx_ec256_public_t* pub_key );
 jalapeno_status_t delete_all_ec256_key_pairs( sgx_enclave_id_t enclave_id );
-jalapeno_status_t tls_encrypt_aes_gcm( 
+sgx_status_t tls_encrypt_aes_gcm( 
 	sgx_enclave_id_t 			enclave_id, 
 	sgx_aes_gcm_128bit_tag_t* 	mac, 
 	uint8_t* 					ciphertext, 
@@ -24,7 +24,7 @@ jalapeno_status_t tls_encrypt_aes_gcm(
 	uint8_t* 					client_random_bytes, 
 	uint32_t 					num_client_random_bytes, 
 	uint8_t 					is_client );
-jalapeno_status_t tls_decrypt_aes_gcm(
+sgx_status_t tls_decrypt_aes_gcm(
 	sgx_enclave_id_t 			enclave_id, 
 	sgx_aes_gcm_128bit_tag_t* 	mac, 
 	uint8_t* 					ciphertext, 

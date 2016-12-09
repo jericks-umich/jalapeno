@@ -1,12 +1,14 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <pwd.h>
+#include <time.h>
 
 #include "sgx_eid.h"
 #include "sgx_tcrypto.h"
 #include "include/status.h"
-#include <jalapeno.h>
+#include "jalapeno.h"
 
 #include "jalapeno_test.h"
 
@@ -18,17 +20,24 @@ int SGX_CDECL main(int argc, char* argv[]) {
 	// Init Crypto SGX Enclave
 	j_status = init_crypto_enclave( &enclave_id, ENCLAVE_FILENAME );
 	
-	// Test #1
-	generate_3_keys_and_delete_2( enclave_id );
-	printf("---------------------------------------------------------\n");
+	//// Test #1
+	//generate_3_keys_and_delete_2( enclave_id );
+	//printf("---------------------------------------------------------\n");
 
-	// Test #2
-	generate_2_keys_and_delete_1( enclave_id );
-	printf("---------------------------------------------------------\n");
+	//// Test #2
+	//generate_2_keys_and_delete_1( enclave_id );
+	//printf("---------------------------------------------------------\n");
 
-	// Test #3
-	webserver_ops( enclave_id );
-	printf("---------------------------------------------------------\n");
+	//// Test #3
+	//webserver_ops( enclave_id );
+	//printf("---------------------------------------------------------\n");
+
+	// Note: we run out of enclave memory at 1000000 (1MB) XXX
+	uint32_t plaintext_len = 100000; // change and recompile as needed for testing
+	webserver_ops_speed_test(enclave_id, plaintext_len);
+
+	//// Test how long it takes to generate keys
+	//gen_n_keys( enclave_id, 2);
 
 	return 0;
 }
@@ -141,7 +150,7 @@ void generate_2_keys_and_delete_1( sgx_enclave_id_t enclave_id ){
 
 void webserver_ops( sgx_enclave_id_t enclave_id ) {
 	jalapeno_status_t status;
-	// sgx_status_t retval;
+	sgx_status_t retval;
 	sgx_ec256_public_t s_pub;
 	sgx_ec256_public_t c_pub;
 	uint8_t client_random[28] = {0}; // super random ;)
@@ -201,8 +210,8 @@ void webserver_ops( sgx_enclave_id_t enclave_id ) {
 	// https://tools.ietf.org/html/rfc5246
 	// ==> this can generate the session keys
 
-	status = tls_encrypt_aes_gcm(enclave_id, &mac, ciphertext, plaintext, plaintext_len, &s_pub, &c_pub, server_random, s_len, client_random, c_len, 0);
-	printf("Status of encryption: %d\n", status);
+	retval = tls_encrypt_aes_gcm(enclave_id, &mac, ciphertext, plaintext, plaintext_len, &s_pub, &c_pub, server_random, s_len, client_random, c_len, 0);
+	printf("Status of encryption: %d\n", retval);
 	printf("Ciphertext:");
 	for (int i=0; i<plaintext_len; i++) {
 		printf(" 0x%x", ciphertext[i]);
@@ -212,8 +221,8 @@ void webserver_ops( sgx_enclave_id_t enclave_id ) {
 	// now, ask the client to decrypt the message
 	printf("Asking the client to decrypt the message\n");
 	// just like before with the encrypt function, but now we're the client
-	status = tls_decrypt_aes_gcm(enclave_id, &mac, ciphertext, new_plaintext, plaintext_len, &s_pub, &c_pub, server_random, s_len, client_random, c_len, 1);
-	printf("Status of decryption: %d\n", status);
+	retval = tls_decrypt_aes_gcm(enclave_id, &mac, ciphertext, new_plaintext, plaintext_len, &s_pub, &c_pub, server_random, s_len, client_random, c_len, 1);
+	printf("Status of decryption: %d\n", retval);
 	printf("Plaintext: '%s'\n", new_plaintext);
 	for (int i=0; i<plaintext_len; i++) {
 		printf(" 0x%x", new_plaintext[i]);
@@ -226,4 +235,112 @@ void webserver_ops( sgx_enclave_id_t enclave_id ) {
 	debug_number_ec256_key_pairs( enclave_id, &num_keys );
 	printf( "Number of EC256 key pairs: %d\n", num_keys );
 	printf( "Return status from delete_all_ec256_key_pairs(): %d\n\n", status );
+}
+
+void webserver_ops_speed_test( sgx_enclave_id_t enclave_id, uint32_t plaintext_len ) {
+	sgx_status_t status1;
+	sgx_status_t status2;
+	sgx_ec256_public_t s_pub;
+	sgx_ec256_public_t c_pub;
+	uint8_t client_random[28] = {0}; // super random ;)
+	uint8_t server_random[28] = {0};
+	uint32_t c_len = sizeof(client_random);
+	uint32_t s_len = sizeof(server_random);
+	sgx_aes_gcm_128bit_tag_t mac;
+	uint8_t* plaintext;
+	uint8_t* ciphertext;
+	uint8_t* new_plaintext;
+	timespec start;
+	timespec end;
+	timespec dif;
+
+
+	// allocate memory for our plaintext tests
+	plaintext = (uint8_t*)calloc(1,plaintext_len);
+	ciphertext = (uint8_t*)calloc(1,plaintext_len);
+	new_plaintext = (uint8_t*)calloc(1,plaintext_len);
+
+	// set plaintext to something discernable, like sequential byte values
+	for(int i=0; i<plaintext_len; i++) {
+		plaintext[i] = (uint8_t)i%256;
+	}
+	
+	// generate the keys we'll need for the following operations
+	generate_ec256_key_pair(enclave_id, &s_pub);
+	generate_ec256_key_pair(enclave_id, &c_pub);
+
+	// now, perform encryption test
+	clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &start);
+	status1 = tls_encrypt_aes_gcm(enclave_id, &mac, ciphertext, plaintext, plaintext_len, &s_pub, &c_pub, server_random, s_len, client_random, c_len, 0);
+	clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &end);
+	dif = diff(start, end);
+	printf("%ld.%09ld, ", dif.tv_sec, dif.tv_nsec);
+	
+
+	// now, perform decryption test
+	clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &start);
+	status2 = tls_decrypt_aes_gcm(enclave_id, &mac, ciphertext, new_plaintext, plaintext_len, &s_pub, &c_pub, server_random, s_len, client_random, c_len, 1);
+	clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &end);
+	dif = diff(start, end);
+	printf("%ld.%09ld\n", dif.tv_sec, dif.tv_nsec);
+
+	// make sure that plaintext and new_plaintext match
+	if (0 != memcmp(plaintext, new_plaintext, plaintext_len)) {
+		printf("Error: plaintext and new_plaintext don't match!\n");
+		printf("%d %d\n", status1, status2);
+		for (int i=0; i<10; i++) {
+			printf(" 0x%x", plaintext[i]);
+		}
+		printf("\n");
+		for (int i=0; i<10; i++) {
+			printf(" 0x%x", ciphertext[i]);
+		}
+		printf("\n");
+		for (int i=0; i<10; i++) {
+			printf(" 0x%x", new_plaintext[i]);
+		}
+		printf("\n");
+	}
+
+	// free all allocated memory
+	free(plaintext);
+	free(ciphertext);
+	free(new_plaintext);
+
+	// delete server and client ec256 key pairs
+	delete_all_ec256_key_pairs( enclave_id );
+}
+
+timespec diff(timespec start, timespec end) {
+	timespec temp;
+	if ((end.tv_nsec-start.tv_nsec)<0) {
+		temp.tv_sec = end.tv_sec-start.tv_sec-1;
+		temp.tv_nsec = 1000000000+end.tv_nsec-start.tv_nsec;
+	} else {
+		temp.tv_sec = end.tv_sec-start.tv_sec;
+		temp.tv_nsec = end.tv_nsec-start.tv_nsec;
+	}
+	return temp;
+}
+
+void gen_n_keys( sgx_enclave_id_t enclave_id, uint32_t num) {
+	sgx_ec256_public_t* keys;
+	timespec start;
+	timespec end;
+	timespec dif;
+
+	// allocate memory for pubkeys that get returned
+	keys = (sgx_ec256_public_t*) calloc(sizeof(sgx_ec256_public_t), num);
+
+	// generate n keys
+	clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &start);
+	for (int i=0; i<num; i++) {
+		generate_ec256_key_pair(enclave_id, &keys[i]);
+	}
+	clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &end);
+	dif = diff(start, end);
+	printf("%ld.%09ld\n", dif.tv_sec, dif.tv_nsec);
+
+	// delete all ec256 key pairs
+	delete_all_ec256_key_pairs( enclave_id );
 }

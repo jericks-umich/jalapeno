@@ -35,14 +35,15 @@ sgx_status_t generate_ec256_key_pair( sgx_ec256_public_t* pub ){
 		// Try to load existing sealed keys from disk
 		if ( load_ec256_keys() != SGX_SUCCESS ){
 			// Initialize cached EC256 key store
-			char msg1[] = "Could not load sealed keys from disk. Initializing new EC256 key store cache...";
-			ocall_prints(&retval, msg1);
+			//char msg1[] = "Could not load sealed keys from disk. Initializing new EC256 key store cache...";
+			//ocall_prints(&retval, msg1);
 		}
 	}
 
 	// Generate a new EC256 key pair, add to cached key store, and backup on disk
-	char msg2[] = "Creating new EC256 key pair...";
-	ocall_prints(&retval, msg2);
+	//char msg2[] = "Creating new EC256 key pair...";
+	//ocall_prints(&retval, msg2);
+
 
 	// Find first key pair handle not in use, scaning through all to eliminate timing side channel
 	free_key_handle = -1;
@@ -84,8 +85,8 @@ sgx_status_t generate_ec256_key_pair( sgx_ec256_public_t* pub ){
 	ec256_key_handles[ free_key_handle ].in_use = true;
 	memcpy(pub, public_key, sizeof(sgx_ec256_public_t));
 
-	char msg4[] = "SUCCESS: generated new EC256 key pair and added to key store.";
-	ocall_prints(&retval, msg4);
+	//char msg4[] = "SUCCESS: generated new EC256 key pair and added to key store.";
+	//ocall_prints(&retval, msg4);
 	return SGX_SUCCESS;
 }
 
@@ -150,8 +151,8 @@ sgx_status_t delete_all_ec256_key_pairs(){
 	free( ec256_key_handles );
 	ec256_key_handles = NULL;
 	ocall_delete_sealed_keys_file( &j_status );
-	char msg1[] = "Deleted sealed key store file.";
-	ocall_prints( &retval, msg1 );
+	//char msg1[] = "Deleted sealed key store file.";
+	//ocall_prints( &retval, msg1 );
 
 	return SGX_SUCCESS;
 }
@@ -418,12 +419,12 @@ sgx_status_t load_ec256_keys(){
 	}
 	else if ( j_status == J_CANT_OPEN_FILE ){
 		free( sealed_data );
-		char msg2[] = "WARNING: problem opening sealed EC256 keys file from disk.";
-		ocall_prints( &retval, msg2 );
+		//char msg2[] = "WARNING: problem opening sealed EC256 keys file from disk.";
+		//ocall_prints( &retval, msg2 );
 		return SGX_ERROR_INVALID_STATE;
 	}
-	char msg3[] = "SUCCESS: retrieved sealed EC256 keys from disk.";
-	ocall_prints( &retval, msg3 );
+	//char msg3[] = "SUCCESS: retrieved sealed EC256 keys from disk.";
+	//ocall_prints( &retval, msg3 );
 
 	// attempt to unseal and cache successfully loaded key data
 	//status = sgx_unseal_data(sealed_data, mac_text_check, &mac_text_len, (uint8_t*)ec256_key_handles, &ec256_key_handles_length);
@@ -438,8 +439,8 @@ sgx_status_t load_ec256_keys(){
 	//if (memcmp( mac_text, mac_text_check, mac_text_len ) != 0) {
 	//  return SGX_ERROR_UNEXPECTED;
 	//}
-	char msg5[] = "SUCCESS: unsealed and cached EC256 keys.";
-	ocall_prints( &retval, msg5 );	
+	//char msg5[] = "SUCCESS: unsealed and cached EC256 keys.";
+	//ocall_prints( &retval, msg5 );	
 	return SGX_SUCCESS;
 }
 
@@ -481,8 +482,8 @@ sgx_status_t store_ec256_keys(){
 		free( sealed_data) ;
 		return status;
 	}
-	char msg2[] = "SUCCESS: sealed EC256 key store.";
-	ocall_prints( &retval, msg2 );
+	//char msg2[] = "SUCCESS: sealed EC256 key store.";
+	//ocall_prints( &retval, msg2 );
 
 	// store the sealed EC256 key to disk
 	status = ocall_store_sealed_keys( &j_status, (uint8_t*) sealed_data, seal_size );
@@ -493,8 +494,8 @@ sgx_status_t store_ec256_keys(){
 		return status;
 	}
 
-	char msg4[] = "SUCCESS: stored sealed EC256 keys to disk.";
-	ocall_prints( &retval, msg4 );
+	//char msg4[] = "SUCCESS: stored sealed EC256 keys to disk.";
+	//ocall_prints( &retval, msg4 );
 	return SGX_SUCCESS;
 }
 

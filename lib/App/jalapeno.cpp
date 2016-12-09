@@ -84,7 +84,7 @@ jalapeno_status_t delete_all_ec256_key_pairs( sgx_enclave_id_t enclave_id ){
 }
 
 // ECALL: encrypts plaintext with a TLS session key, which is derived from by a generated ECDH key
-jalapeno_status_t tls_encrypt_aes_gcm( 
+sgx_status_t tls_encrypt_aes_gcm( 
 	sgx_enclave_id_t 			enclave_id, 
 	sgx_aes_gcm_128bit_tag_t* 	mac, 
 	uint8_t* 					ciphertext, 
@@ -115,10 +115,12 @@ jalapeno_status_t tls_encrypt_aes_gcm(
 		client_random_bytes, 
 		num_client_random_bytes, 
 		is_client);
+
+	return status;
 }
 
 // ECALL: decrypts plaintext with a TLS session key, which is derived from by a generated ECDH key
-jalapeno_status_t tls_decrypt_aes_gcm(
+sgx_status_t tls_decrypt_aes_gcm(
 	sgx_enclave_id_t 			enclave_id, 
 	sgx_aes_gcm_128bit_tag_t* 	mac, 
 	uint8_t* 					ciphertext, 
@@ -149,6 +151,8 @@ jalapeno_status_t tls_decrypt_aes_gcm(
 		client_random_bytes, 
 		num_client_random_bytes, 
 		is_client);
+
+	return status;
 }
 
 // ECALL (for debugging use only): returns number of stored ec256 key pairs
@@ -187,7 +191,7 @@ void print_ec256_pub_key( sgx_ec256_public_t* pub ){
 ////////////
 
 int ocall_prints( const char* str ) {
-  printf("The enclave prints: \"%s\"\n", str);
+  fprintf(stderr, "The enclave prints: \"%s\"\n", str);
 }
 
 jalapeno_status_t ocall_store_sealed_keys( const uint8_t* sealed_data, uint32_t len ) {
